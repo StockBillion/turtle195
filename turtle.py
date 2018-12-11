@@ -1,11 +1,30 @@
 #!/usr/bin/env python
 #-*- coding: utf8 -*-
 import pandas as pf
+import tushare as ts
 # import pandas.core.frame as pf
+
+# https://tushare.pro/
+ts.set_token("e2a71ab976c499825f6f48186f24700f70e0f13af933e2f508684cc0")
+pro = ts.pro_api()
+hist_data = pro.index_daily(ts_code='000001.SH', start_date='20180901')
+print(hist_data)
+exit(0)
 
 class StockDataSet:
     '股票数据集合'
-    stocks = []
+    stocks = {}
+    
+    def load(self, code):
+        hist_data = pro.daily(ts_code='601857.SH', start_date='20180901', end_date='20181201')
+        hist_data = hist_data.sort_index(ascending=False)
+
+        hist_data.to_csv('./data/' + code + '.csv')
+        self.stocks[code] = hist_data
+
+    def read(self, code):
+        self.stocks[code] = pf.read_csv('./data/' + code + '.csv', index_col=0)
+
 
 class StockAccount:
     '股票交易账户'
@@ -75,16 +94,15 @@ acc1.Order("601857", "zhongguoshiyou", 7.5, -200)
 print(acc1.cash, acc1.cost)
 print(acc1.stocks)
 
-acc1.stocks.to_csv('./data/account.csv')
+dataset = StockDataSet()
+dataset.load('601857')
+print(dataset.stocks['601857'])
+
+# acc1.stocks.to_csv('./data/account.csv')
 
 
 # print(acc1.stocks.loc['601318'])
 
-
-# https://tushare.pro/
-# import tushare as ts
-# ts.set_token("e2a71ab976c499825f6f48186f24700f70e0f13af933e2f508684cc0")
-# pro = ts.pro_api()
 
 # hist_data = pro.fund_daily(ts_code='150018.SZ', 
 #     start_date='20180101', end_date='20181208')
