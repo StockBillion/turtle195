@@ -1,35 +1,84 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 #-*- coding: utf8 -*-
-import pandas.core.frame as pf
+import pandas as pf
+# import pandas.core.frame as pf
+
+class StockDataSet:
+    '股票数据集合'
+    stocks = []
 
 class StockAccount:
     '股票交易账户'
     market_value = 0
     cash = 0
-    # stocks = []
+    cost = 0
     stocks = pf.DataFrame()
-    # stocks = pf.DataFrame(columns=['name', 'volume', 'market_value'])
 
     def __init__(self, cash):
         self.cash = cash
 
-    def Buy(self, code, name, price, volume):
-        if( self.cash < price*volume ):
-            raise ValueError("not sufficient funds.")
+    def prt(self):
+        print( "total balance = " , (self.market_value + self.cash), \
+            "\nmarket value = " , self.market_value, "\ncapital = " , self.cash )
+
+    def Rechange(self, _cash):
+        self.cash += _cash
+
+    def Cash(self, _capital):
+        if( self.cash >= _capital ):
+            self.cash -= _capital
+        else:
+            raise ValueError("Insufficient account balance")
+
+    def Order(self, code, name, price, volume):
         _value = price*volume
+        if( self.cash - _value < 0 ):
+            raise ValueError("not sufficient funds.")
         self.cash -= _value
-        _row = {'name': [name], 'volume': [volume], 'market_value': [_value]}
-        _index = [code]
-        self.stocks = self.stocks.append(pf.DataFrame(_row, _index))
-        # _row = {'code': [code], 'name': [name], 'volume': [volume], 'market_value': [_value]}
-        # self.stocks = self.stocks.append(pf.DataFrame(_row), ignore_index=True)
-        
+
+        absv = abs(_value)
+        if absv * 0.001 < 5:
+            _cost = 5
+        else:
+            _cost = absv * 0.001
+
+        if volume < 0:
+            _cost += absv * 0.001
+        _cost += absv * 0.00002
+        self.cost += _cost
+
+        if  code in self.stocks.index : 
+            if( self.stocks.loc[code]['volume'] + volume < 0 ):
+                raise ValueError("Don't naked short sale.")
+            _row = self.stocks.loc[code]
+            _volume = _row.volume + volume
+            if _volume == 0:
+                _cost = _row.cost
+            else:
+                _cost = (_row.volume*_row.cost + _cost + _value) / _volume
+            # _cost = price*volune + _row.volume*_row.cost
+            self.stocks.loc[code] = [name, _volume, _cost, _volume*price]
+
+        else:
+            if( volume <= 0 ):
+                raise ValueError("Don't naked short sale.")
+            _cost = (_cost + _value) / volume
+            _row = {'name': [name], 'volume': [volume], 'cost': [_cost], 'market_value': [_value]}
+            _index = [code]
+            self.stocks = self.stocks.append(pf.DataFrame(_row, _index))
+
 
 acc1 = StockAccount(10000)
-acc1.Buy("601857", "zhongguoshiyou", 7.7, 400)
-acc1.Buy("601318", "zhongguopingan", 62.18, 100)
-print(acc1.cash)
+acc1.Order("601857", "zhongguoshiyou", 7.7, 400)
+acc1.Order("601318", "zhongguopingan", 62.18, 100)
+acc1.Order("601857", "zhongguoshiyou", 7.5, -200)
+print(acc1.cash, acc1.cost)
 print(acc1.stocks)
+
+acc1.stocks.to_csv('./data/account.csv')
+
+
+# print(acc1.stocks.loc['601318'])
 
 
 # https://tushare.pro/
@@ -53,6 +102,21 @@ print(acc1.stocks)
 # print(df1)
 
 
+    # stocks = []
+    # stocks = pf.DataFrame(columns=['name', 'volume', 'market_value'])
+            # self.stocks.loc[code] = {'name': [name], 'volume': [volume], 'market_value': [_value]}
+            # [name, volume, volume*price]
+
+        # _row = {'code': [code], 'name': [name], 'volume': [volume], 'market_value': [_value]}
+        # self.stocks = self.stocks.append(pf.DataFrame(_row), ignore_index=True)
+        
+            # _row.volume += volume
+            # _row.market_value = _row.volume *price
+            # self.stocks.update(_row)
+            # self.stocks.loc[code] = _row
+            # self.stocks.loc[code]['volume'] += volume
+            # self.stocks.loc[code]['market_value'] = self.stocks.loc[code]['volume'] * price
+            
         # _row = [code, name, volume, _value]
         # _row = {'code': code, 'name': name, 'volume': volume, 'market_value': _value}
         # self.stocks.append(_row)
@@ -63,3 +127,15 @@ print(acc1.stocks)
         # _row = pf.DataFrame(_row)
         # print(_row)
         # self.stocks.append({'code': code, 'name': name, 'volume': volume, 'market_value': _value}, ignore_index=True)
+
+        #     if -_value * 0.002 < 5:
+        #         _cost += 5
+        #     else
+        #         _cost = _value * 0.001    
+        #     _cost = -_value * 0.002
+        # else:
+        #     _cost = _value * 0.001
+
+# df2 = pf.read_csv('./data/account.csv', index_col=0)
+# print(df2)
+# exit(0)
