@@ -7,9 +7,10 @@ import tushare as ts
 # https://tushare.pro/
 ts.set_token("e2a71ab976c499825f6f48186f24700f70e0f13af933e2f508684cc0")
 pro = ts.pro_api()
-hist_data = pro.index_daily(ts_code='000001.SH', start_date='20180901')
-print(hist_data)
-exit(0)
+
+# hist_data = pro.index_daily(ts_code='000001.SH', start_date='20180901')
+# print(hist_data)
+# exit(0)
 
 class StockDataSet:
     '股票数据集合'
@@ -95,7 +96,7 @@ print(acc1.cash, acc1.cost)
 print(acc1.stocks)
 
 dataset = StockDataSet()
-dataset.load('601857')
+dataset.read('601857')
 print(dataset.stocks['601857'])
 
 # acc1.stocks.to_csv('./data/account.csv')
