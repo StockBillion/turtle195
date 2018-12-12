@@ -54,7 +54,16 @@ class StockDataSet:
         except IOError: 
             return pf.DataFrame()
 
-    def load(self, code, startdate, enddate):
+    def daily(self, code, startdate, enddate, stype):
+        if stype == 'index':
+            hist_data = pro.index_daily(ts_code=code, start_date=startdate, end_date=enddate)
+        elif stype == 'fund':
+            hist_data = pro.fund_daily(ts_code=code, start_date=startdate, end_date=enddate)
+        else:
+            hist_data = pro.daily(ts_code=code, start_date=startdate, end_date=enddate)
+        return hist_data
+
+    def load(self, code, startdate, enddate, stype = 'stock'):
         print( 'load stock ' + code + ' data')
         local_data = self.read(code)
         _rowcount = len(local_data)
@@ -64,13 +73,16 @@ class StockDataSet:
             _tear = str(local_data.at[_rowcount-1, 'trade_date'])
 
             if _head < enddate :
-                down_data = pro.daily(ts_code=code, start_date=str(local_data.at[ 0, 'trade_date'] + 1), end_date=enddate)
+                down_data = self.daily(code, str(local_data.at[ 0, 'trade_date'] + 1), enddate, stype)
+                # down_data = pro.daily(ts_code=code, start_date=str(local_data.at[ 0, 'trade_date'] + 1), end_date=enddate)
                 local_data = self.join(local_data, down_data)
             if _tear > startdate :
-                down_data = pro.daily(ts_code=code, start_date=startdate, end_date=_tear)
+                down_data = self.daily(code, enddate, _tear, stype)
+                # down_data = pro.daily(ts_code=code, start_date=startdate, end_date=_tear)
                 local_data = self.join(local_data, down_data)
         else:
-            local_data = pro.daily(ts_code=code, start_date=startdate, end_date=enddate)
+            local_data = self.daily(code, enddate, enddate, stype)
+            # local_data = pro.daily(ts_code=code, start_date=startdate, end_date=enddate)
 
         print(local_data)
         self.stocks[code] = local_data
@@ -81,22 +93,26 @@ if __name__ == "__main__":
     dataset = StockDataSet()
     startdate = '20180101'
     enddate = '20181201'
+    stype = 'stock'
 
     parser = argparse.ArgumentParser(description="show example")
     parser.add_argument('filename', default=['601857.sh'], nargs='*')
     parser.add_argument("-s", "--start_date", help="start date")
     parser.add_argument("-e", "--end_date", help="end date")
+    parser.add_argument("-t", "--data_type", help="end date")
 
     ARGS = parser.parse_args()
     if ARGS.start_date:
         startdate = str(ARGS.start_date)
     if ARGS.end_date:
         enddate = str(ARGS.end_date)
+    if ARGS.data_type:
+        stype = str(ARGS.data_type)
     if ARGS.filename:
         stock_codes = ARGS.filename
 
     for code in stock_codes:
-        dataset.load(code, startdate, enddate)
+        dataset.load(code, startdate, enddate, stype)
 
     # opts,args = getopt.getopt(sys.argv[1:], "e:hs:v", ['end=', 'help', 'start=', 'version'])
     # # opts, args = getopt.getopt(sys.argv[1:], "hvs:e:", ['help', 'version', 'start=', 'end='])
