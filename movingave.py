@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 #-*- coding: utf8 -*-
 import argparse, numpy as np
-from matplotlib.pylab import date2num
+from matplotlib.pylab import date2num, num2date
 import datetime
+import matplotlib.pyplot as plt
+import mpl_finance as mpf
 import pandas as pf
 from download import StockDataSet
 
@@ -73,10 +75,13 @@ class StockAccount:
             raise ValueError("Insufficient account balance")
 
     def Order(self, code, price, volume, order_time):
+        # if order_time is float:
+        order_time = num2date(order_time).strftime('%Y/%m/%d')
         _value = price*volume
         if( self.cash - _value < 0 ):
             raise ValueError("not sufficient funds.")
         self.cash -= _value
+        # print('order_time type', type(order_time))
 
         absv = abs(_value)
         if absv * 0.001 < 5:
@@ -108,9 +113,12 @@ class StockAccount:
             _row = {'volume': [volume], 'price': [price], 'market_value': [_value], 'cost': [_cost], 'order_time': [order_time]}
             _index = [code]
             self.stocks = self.stocks.append(pf.DataFrame(_row, _index))
-        print(self.stocks)
 
-def moving_average_test(account, code, stock_data):
+        print(self.stocks)
+        print(self.cash, self.market_value)
+
+def moving_average_test(account, code, stock_data, stype = 'stock'):
+
     data_list = []
     ave_price = []
     volumes = []
@@ -129,31 +137,60 @@ def moving_average_test(account, code, stock_data):
     m120 = moving_average(ave_price, 120)
     m020 = moving_average(ave_price,  20)
 
-    # print(m020)
-    # print(data_list[1][0])
+    up120 = False
+    up020 = False
+    long_state = False
 
-    state = 0
-    doing = 0
+    for n in range(120, len(stock_data)):
+        _date = data_list[n][0]
+        _open = data_list[n][1]
+        if stype == 'index':
+            _open = _open/100
 
-    for n in range(121, len(stock_data)):
-        if doing == 1:
-            volume = account.cash / data_list[n][1]
+        if up120 and up020 and (not long_state):
+            volume = account.cash / _open
             volume = int(volume/100) * 100
-            account.Order(code, data_list[n][1], volume, data_list[n][0])
-            state = 1
-            doing = 0
-        elif doing == -1:
+            account.Order(code, _open, volume, _date)
+            long_state = True
+
+        if (not up020) and long_state:
             volume = account.stocks.at[code, 'volume']
-            # volume = account.stocks[code]['volume']
-            account.Order(code, data_list[n][1], -volume, data_list[n][0])
-            state = 0
-            doing = 0
+            account.Order(code, _open, -volume, _date)
+            long_state = False
 
-        if state == 0 and m120[n] < data_list[n][2]:
-            doing = 1
-        if state == 1 and m020[n] > data_list[n][2]:
-            doing = -1
+        if m120[n] < data_list[n][2]:
+            up120 = True
+        else:
+            up120 = False
 
+        if m020[n] > data_list[n][3]:
+            up020 = False
+        else:
+            up020 = True
+
+    fig,[ax1,ax2] = plt.subplots(2,1,sharex=True)
+    # fig.subplots_adjust(bottom=0.2)
+
+    ax1.xaxis_date()
+    ax1.set_title(code)
+    ax1.set_ylabel("price")
+
+    plt.xticks(rotation=45)
+    plt.yticks()
+
+    mpf.candlestick_ohlc(ax1, data_list, width=1.5, colorup='r', colordown='green')
+
+    data_table = np.transpose( data_list )
+    dates = data_table[0]
+    ax1.plot(dates, m120, color='c', lw=2, label='MA (10)')
+    ax1.plot(dates, m020, color='c', lw=2, label='MA (10)')
+
+    ax2.bar(dates, volumes, width=0.75)
+    ax2.set_ylabel('Volume')
+
+    plt.xlabel("date")
+    plt.grid()
+    plt.show()
 
 if __name__ == "__main__":
     dataset = StockDataSet()
@@ -181,7 +218,37 @@ if __name__ == "__main__":
 
     for code in stock_codes:
         dataset.load(code, startdate, enddate, stype)
-        moving_average_test(account, code, dataset.stocks[code])
+        moving_average_test(account, code, dataset.stocks[code], stype)
         print(account.cash)
 
 
+
+        # up120 = m120[n] < data_list[n][2] ? True : False
+        # print(m120[n], m020[n], data_list[n][2], data_list[n][3])
+
+    # state = 0
+    # doing = 0
+
+    # for n in range(121, len(stock_data)):
+    #     _date = data_list[n][0]
+    #     _open = data_list[n][1]
+    #     if stype == 'index':
+    #         _open = _open/100
+
+    #     if doing == 1:
+    #         volume = account.cash / _open
+    #         volume = int(volume/100) * 100
+    #         account.Order(code, _open, volume, _date)
+    #         state = 1
+    #         doing = 0
+    #     elif doing == -1:
+    #         volume = account.stocks.at[code, 'volume']
+    #         # volume = account.stocks[code]['volume']
+    #         account.Order(code, _open, -volume, _date)
+    #         state = 0
+    #         doing = 0
+
+    #     if state == 0 and m120[n] < data_list[n][2]:
+    #         doing = 1
+    #     if state == 1 and m020[n] > data_list[n][3]:
+    #         doing = -1

@@ -102,7 +102,7 @@ class StockDataSet:
         if len(local_data) > _rowcount:
             print('write csv file', len(local_data), 'rows')
             local_data.to_csv('./data/' + code + '.csv')
-        self.stocks[code] = local_data
+        self.stocks[code] = local_data.sort_index(ascending=False)
         
         
 if __name__ == "__main__":
