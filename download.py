@@ -13,35 +13,35 @@ class StockDataSet:
     '股票数据集合'
     stocks = {}
     
-    def join(self, net_data1, csv_data2):
+    def join(self, csv_data2, net_data1):
         len1 = len(net_data1)
         len2 = len(csv_data2)
-        print(len1)
-        print(len2)
+        print('join csv_data', len2, ' net_data1', len1)
 
         if len1 < 1: 
             return csv_data2
         if len2 < 1: 
             return net_data1
 
-        print(type(net_data1.at[0, 'trade_date']))
-        print(type(csv_data2.at[0, 'trade_date']))
-        _head1 = numpy.int64(net_data1.at[0, 'trade_date'])
-        _head2 = numpy.int64(csv_data2.at[0, 'trade_date'])
-        _tear1 = numpy.int64(net_data1.at[len1-1, 'trade_date'])
-        _tear2 = numpy.int64(csv_data2.at[len2-1, 'trade_date'])
+        _head1 = net_data1.at[0, 'trade_date']
+        _head2 = csv_data2.at[0, 'trade_date']
+        _tear1 = net_data1.at[len1-1, 'trade_date']
+        _tear2 = csv_data2.at[len2-1, 'trade_date']
 
         if _head1 < _head2:
             if _tear1 < _tear2:
-                temp = csv_data2.loc[csv_data2['trade_date'] > str(_head1)]
+                temp = csv_data2.loc[csv_data2['trade_date'] > _head1]
+                # print("temp len", len(temp))
                 data0 = temp.append(net_data1, ignore_index=True)
+                # print("net_data1 len", len(net_data1))
+                # print("data0 len", len(data0))
             else:
                 data0 = csv_data2
         elif _head1 > _head2:
             if _tear1 < _tear2:
                 data0 = net_data1
             else:
-                temp = net_data1.loc[net_data1['trade_date'] > str(_head1)]
+                temp = net_data1.loc[net_data1['trade_date'] > _head1]
                 data0 = temp.append(csv_data2, ignore_index=True)
         else:
             if _tear1 < _tear2:
@@ -53,7 +53,7 @@ class StockDataSet:
 
     def read(self, code):
         try:
-            self.stocks[code] = pf.read_csv('./data/' + code + '.csv', index_col=0)
+            self.stocks[code] = pf.read_csv('./data/' + code + '.csv', index_col=0, dtype = {'trade_date' : str})
             return self.stocks[code]
         except IOError: 
             return pf.DataFrame()
@@ -71,6 +71,7 @@ class StockDataSet:
             hist_data = pro.daily(ts_code=code, start_date=startdate, end_date=enddate)
 
         print('download', len(hist_data), 'row data')
+        # hist_data.info()
         return hist_data
 
     def load(self, code, startdate, enddate, stype = 'stock'):
@@ -83,31 +84,25 @@ class StockDataSet:
 
         local_data = self.read(code)
         _rowcount = len (local_data)
-
-        # print(len)
-        # print(local_data)
-        print(local_data.at[ 0, 'trade_date'])
-        # print(local_data.at[50, 'trade_date'])
-        # print(local_data.at[90, 'trade_date'])
-        # print(local_data.at[_rowcount-1, 'trade_date'])
-
+        
         if _rowcount > 0 :
             _head = numpy.int64(local_data.at[0, 'trade_date'])
             _tear = numpy.int64(local_data.at[_rowcount-1, 'trade_date'])
 
-            if _head < enddate :
+            if _head+1 < enddate:
                 down_data = self.daily(code, _head + 1, enddate, stype)
                 local_data = self.join(local_data, down_data)
-            if _tear > startdate :
+            if _tear-1 > startdate:
                 down_data = self.daily(code, startdate, _tear-1, stype)
                 local_data = self.join(local_data, down_data)
         else:
-            local_data = self.daily(code, startdate, enddate, stype)
+            down_data = self.daily(code, startdate, enddate, stype)
+            local_data = down_data
 
-        # print(local_data)
-        print('write csv file', len(local_data), 'rows')
+        if len(local_data) > _rowcount:
+            print('write csv file', len(local_data), 'rows')
+            local_data.to_csv('./data/' + code + '.csv')
         self.stocks[code] = local_data
-        self.stocks[code].to_csv('./data/' + code + '.csv')
         
         
 if __name__ == "__main__":
@@ -124,9 +119,9 @@ if __name__ == "__main__":
 
     ARGS = parser.parse_args()
     if ARGS.start_date:
-        startdate = str(ARGS.start_date)
+        startdate = ARGS.start_date
     if ARGS.end_date:
-        enddate = str(ARGS.end_date)
+        enddate = ARGS.end_date
     if ARGS.data_type:
         stype = str(ARGS.data_type)
     if ARGS.filename:
@@ -135,6 +130,17 @@ if __name__ == "__main__":
     for code in stock_codes:
         dataset.load(code, startdate, enddate, stype)
 
+
+        # local_data.info()
+        # print(len)
+        # print(local_data)
+        # print(local_data.at[ 0, 'trade_date'])
+        # print(local_data.at[50, 'trade_date'])
+        # print(local_data.at[90, 'trade_date'])
+        # print(local_data.at[_rowcount-1, 'trade_date'])
+
+        # print(type(net_data1.at[0, 'trade_date']))
+        # print(type(csv_data2.at[0, 'trade_date']))
 
         # print(type(data1.at[0, 'trade_date']))
         # print(type(data2.at[0, 'trade_date']))
