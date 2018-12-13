@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #-*- coding: utf8 -*-
-import argparse
+import argparse, numpy
 import pandas as pf
 import tushare as ts
 
@@ -13,37 +13,41 @@ class StockDataSet:
     '股票数据集合'
     stocks = {}
     
-    def join(self, data1, data2):
-        len1 = len(data1)
-        len2 = len(data2)
+    def join(self, net_data1, csv_data2):
+        len1 = len(net_data1)
+        len2 = len(csv_data2)
+        print(len1)
+        print(len2)
 
         if len1 < 1: 
-            return data2
+            return csv_data2
         if len2 < 1: 
-            return data1
+            return net_data1
 
-        _head1 = str(data1.at[0, 'trade_date'])
-        _head2 = str(data2.at[0, 'trade_date'])
-        _tear1 = str(data1.at[len1-1, 'trade_date'])
-        _tear2 = str(data2.at[len2-1, 'trade_date'])
+        print(type(net_data1.at[0, 'trade_date']))
+        print(type(csv_data2.at[0, 'trade_date']))
+        _head1 = numpy.int64(net_data1.at[0, 'trade_date'])
+        _head2 = numpy.int64(csv_data2.at[0, 'trade_date'])
+        _tear1 = numpy.int64(net_data1.at[len1-1, 'trade_date'])
+        _tear2 = numpy.int64(csv_data2.at[len2-1, 'trade_date'])
 
-        if( _head1 < _head2 ):
-            if _tear1 < _tear2 :
-                temp = data2.loc[data2['trade_date'] > _head1]
-                data0 = temp.append(data1)
+        if _head1 < _head2:
+            if _tear1 < _tear2:
+                temp = csv_data2.loc[csv_data2['trade_date'] > str(_head1)]
+                data0 = temp.append(net_data1, ignore_index=True)
             else:
-                data0 = data2
-        elif _head1 > _head2 :
-            if _tear1 < _tear2 :
-                data0 = data1
+                data0 = csv_data2
+        elif _head1 > _head2:
+            if _tear1 < _tear2:
+                data0 = net_data1
             else:
-                temp = data1.loc[data1['trade_date'] > _head1]
-                data0 = temp.append(data2)
+                temp = net_data1.loc[net_data1['trade_date'] > str(_head1)]
+                data0 = temp.append(csv_data2, ignore_index=True)
         else:
-            if _tear1 < _tear2 :
-                data0 = data1
+            if _tear1 < _tear2:
+                data0 = net_data1
             else:
-                data0 = data2
+                data0 = csv_data2
 
         return data0
 
@@ -55,36 +59,53 @@ class StockDataSet:
             return pf.DataFrame()
 
     def daily(self, code, startdate, enddate, stype):
+        print('download ', stype, ' ', code, ' data, from ', startdate, ' to ', enddate)
+        startdate = str(startdate)
+        enddate = str(enddate)
+
         if stype == 'index':
             hist_data = pro.index_daily(ts_code=code, start_date=startdate, end_date=enddate)
         elif stype == 'fund':
             hist_data = pro.fund_daily(ts_code=code, start_date=startdate, end_date=enddate)
         else:
             hist_data = pro.daily(ts_code=code, start_date=startdate, end_date=enddate)
+
+        print('download', len(hist_data), 'row data')
         return hist_data
 
     def load(self, code, startdate, enddate, stype = 'stock'):
-        print( 'load stock ' + code + ' data')
+        print('download ', stype, ' ', code, ' data, from ', startdate, ' to ', enddate)
+
+        if startdate is not numpy.int64:
+            startdate = numpy.int64(startdate)
+        if enddate is not numpy.int64:
+            enddate = numpy.int64(enddate)
+
         local_data = self.read(code)
-        _rowcount = len(local_data)
+        _rowcount = len (local_data)
+
+        # print(len)
+        # print(local_data)
+        print(local_data.at[ 0, 'trade_date'])
+        # print(local_data.at[50, 'trade_date'])
+        # print(local_data.at[90, 'trade_date'])
+        # print(local_data.at[_rowcount-1, 'trade_date'])
 
         if _rowcount > 0 :
-            _head = str(local_data.at[ 0, 'trade_date'])
-            _tear = str(local_data.at[_rowcount-1, 'trade_date'])
+            _head = numpy.int64(local_data.at[0, 'trade_date'])
+            _tear = numpy.int64(local_data.at[_rowcount-1, 'trade_date'])
 
             if _head < enddate :
-                down_data = self.daily(code, str(local_data.at[ 0, 'trade_date'] + 1), enddate, stype)
-                # down_data = pro.daily(ts_code=code, start_date=str(local_data.at[ 0, 'trade_date'] + 1), end_date=enddate)
+                down_data = self.daily(code, _head + 1, enddate, stype)
                 local_data = self.join(local_data, down_data)
             if _tear > startdate :
-                down_data = self.daily(code, enddate, _tear, stype)
-                # down_data = pro.daily(ts_code=code, start_date=startdate, end_date=_tear)
+                down_data = self.daily(code, startdate, _tear-1, stype)
                 local_data = self.join(local_data, down_data)
         else:
-            local_data = self.daily(code, enddate, enddate, stype)
-            # local_data = pro.daily(ts_code=code, start_date=startdate, end_date=enddate)
+            local_data = self.daily(code, startdate, enddate, stype)
 
-        print(local_data)
+        # print(local_data)
+        print('write csv file', len(local_data), 'rows')
         self.stocks[code] = local_data
         self.stocks[code].to_csv('./data/' + code + '.csv')
         
@@ -113,6 +134,18 @@ if __name__ == "__main__":
 
     for code in stock_codes:
         dataset.load(code, startdate, enddate, stype)
+
+
+        # print(type(data1.at[0, 'trade_date']))
+        # print(type(data2.at[0, 'trade_date']))
+
+                # data1['trade_date'].info()
+        # print( 'load stock ' + code + ' data')
+        # data2.at[0, 'trade_date'].info()
+                # down_data = pro.daily(ts_code=code, start_date=startdate, end_date=_tear)
+            # local_data = pro.daily(ts_code=code, start_date=startdate, end_date=enddate)
+                # down_data = pro.daily(ts_code=code, start_date=str(local_data.at[ 0, 'trade_date'] + 1), 
+                # end_date=enddate)
 
     # opts,args = getopt.getopt(sys.argv[1:], "e:hs:v", ['end=', 'help', 'start=', 'version'])
     # # opts, args = getopt.getopt(sys.argv[1:], "hvs:e:", ['help', 'version', 'start=', 'end='])
