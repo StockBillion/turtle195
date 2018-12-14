@@ -74,12 +74,23 @@ class StockAccount:
         else:
             raise ValueError("Insufficient account balance")
 
+    def UpdateValue(self, prices):
+        self.market_value = self.cash
+        # print(prices)
+        for code, row in self.stocks.iterrows():
+            row['price'] = prices[code]
+            row['market_value'] = row['price']*row['volume']
+            self.market_value += row['market_value']
+            # print(prices[code])
+            # print(code)
+            # print(row)
+
     def Order(self, code, price, volume, order_time):
         # if order_time is float:
-        order_time = num2date(order_time).strftime('%Y/%m/%d')
+        order_time = num2date(order_time).strftime('%Y%m%d')
         _value = price*volume
-        if( self.cash - _value < 0 ):
-            raise ValueError("not sufficient funds.")
+        # if( self.cash - _value < 0 ):
+        #     raise ValueError("not sufficient funds.")
         self.cash -= _value
         # print('order_time type', type(order_time))
 
@@ -119,9 +130,13 @@ class StockAccount:
 
 def moving_average_test(account, code, stock_data, stype = 'stock'):
 
+    _date = datetime.datetime.strptime('20080101', '%Y%m%d')
+    start_date = date2num(_date)
+
     data_list = []
     ave_price = []
     volumes = []
+    market_values = []
 
     for rnum, row in stock_data.iterrows():
         tscode, trade_date, open, high, low, close = row[0:6]
@@ -140,23 +155,48 @@ def moving_average_test(account, code, stock_data, stype = 'stock'):
     up120 = False
     up020 = False
     long_state = False
+    need_long = False
+    cash_unit = 0
+    long_price = 0
+
+    for n in range(0, 120):
+        _date, _open, _high, _low, _close = data_list[n][0:5]
+        if stype == 'index':
+            _open = _open/1000
+            _close/= 1000
+        account.UpdateValue({code: _close})
+        market_values.append(account.market_value *.025)
 
     for n in range(120, len(stock_data)):
-        _date = data_list[n][0]
-        _open = data_list[n][1]
+        _date, _open, _high, _low, _close = data_list[n][0:5]
+        # order_time = num2date(order_time).strftime('%Y%m%d')
+
         if stype == 'index':
-            _open = _open/100
+            _open = _open/1000
+            _close/= 1000
 
-        if up120 and up020 and (not long_state):
-            volume = account.cash / _open
-            volume = int(volume/100) * 100
-            account.Order(code, _open, volume, _date)
-            long_state = True
+        if _date < start_date:
+            account.UpdateValue({code: _close})
+            market_values.append(account.market_value *.025)
+            continue
 
+        if need_long:
+            need_long = False
+            if account.cash >= -cash_unit*2:
+                volume = cash_unit / _open
+                volume = int(volume/100) * 100
+                account.Order(code, _open, volume, _date)
+
+        # if up120 and up020 and (not long_state):
+        #     volume = account.cash / _open
+        #     volume = int(volume/100) * 100
+        #     long_state = account.Order(code, _open, volume, _date)
+            
         if (not up020) and long_state:
             volume = account.stocks.at[code, 'volume']
             account.Order(code, _open, -volume, _date)
             long_state = False
+            # long_state = not account.Order(code, _open, -volume, _date)
 
         if m120[n] < data_list[n][2]:
             up120 = True
@@ -168,7 +208,39 @@ def moving_average_test(account, code, stock_data, stype = 'stock'):
         else:
             up020 = True
 
+        if up120 and up020 and (not long_state):
+            long_state = True
+            cash_unit = account.cash/3
+            long_price = _close
+            # need_long = True
+
+        if long_state and _close >= long_price:
+            need_long = True
+            long_price = _close * 1.02
+            
+        # if (not up020) and long_state:
+        #     long_state = False
+
+        account.UpdateValue({code: _close})
+        market_values.append(account.market_value *.025)
+
+        # _date = data_list[n][0]
+        # _open = data_list[n][1]
+        # print('up120', up120, 'up020', up020, 'long_state', long_state)
+
+            # print('long price', _open, 'volume', volume, 'date', _date)
+            # long_state = True
+
+            # print('short price', _open, 'volume', volume, 'date', _date)
+            # long_state = False
+
+    # account.UpdateValue({code: 0})
+    # print(account.stocks)
+    # return
+
     fig,[ax1,ax2] = plt.subplots(2,1,sharex=True)
+    fig.subplots_adjust(left=0.05, bottom=0.05, right=0.95, top=0.95)
+    # plt.subplots_adjust(left=0.2, bottom=0.2, right=0.8, top=0.8，hspace=0.2, wspace=0.3)
     # fig.subplots_adjust(bottom=0.2)
 
     ax1.xaxis_date()
@@ -182,8 +254,12 @@ def moving_average_test(account, code, stock_data, stype = 'stock'):
 
     data_table = np.transpose( data_list )
     dates = data_table[0]
-    ax1.plot(dates, m120, color='c', lw=2, label='MA (10)')
-    ax1.plot(dates, m020, color='c', lw=2, label='MA (10)')
+    ax1.plot(dates, m120, color='g', lw=2, label='MA (120)')
+    ax1.plot(dates, m020, color='b', lw=2, label='MA (20)')
+    ax1.plot(dates, market_values, color='r', lw=2, label='MV')
+
+    # print(market_value)
+    # print(m020)
 
     ax2.bar(dates, volumes, width=0.75)
     ax2.set_ylabel('Volume')
@@ -191,6 +267,7 @@ def moving_average_test(account, code, stock_data, stype = 'stock'):
     plt.xlabel("date")
     plt.grid()
     plt.show()
+
 
 if __name__ == "__main__":
     dataset = StockDataSet()
