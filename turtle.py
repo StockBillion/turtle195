@@ -1,160 +1,394 @@
 #!/usr/bin/env python
 #-*- coding: utf8 -*-
+import argparse, numpy as np
+from matplotlib.pylab import date2num, num2date
+import datetime
+import matplotlib.pyplot as plt
+import mpl_finance as mpf
 import pandas as pf
-import tushare as ts
-# import pandas.core.frame as pf
 
-# https://tushare.pro/
-ts.set_token("e2a71ab976c499825f6f48186f24700f70e0f13af933e2f508684cc0")
-pro = ts.pro_api()
-
-# hist_data = pro.index_daily(ts_code='000001.SH', start_date='20180901')
-# print(hist_data)
-# exit(0)
-
-class StockDataSet:
-    '股票数据集合'
-    stocks = {}
-    
-    def load(self, code):
-        hist_data = pro.daily(ts_code='601857.SH', start_date='20180901', end_date='20181201')
-        hist_data = hist_data.sort_index(ascending=False)
-
-        hist_data.to_csv('./data/' + code + '.csv')
-        self.stocks[code] = hist_data
-
-    def read(self, code):
-        self.stocks[code] = pf.read_csv('./data/' + code + '.csv', index_col=0)
+from stockdata import StockDataSet, parse_stock_data
+from account import StockAccount
 
 
-class StockAccount:
-    '股票交易账户'
-    market_value = 0
-    cash = 0
-    cost = 0
-    stocks = pf.DataFrame()
+class MovingAverage:
+    '股票的移动平均线'
+    # ma_indexs = {}
+    # prices = []
 
-    def __init__(self, cash):
-        self.cash = cash
+    def __init__(self, _prices, _n):
+        self.ma_indexs = {}
+        self.prices = np.asarray(_prices)
+        self._moving_average(self.prices, _n)
 
-    def prt(self):
-        print( "total balance = " , (self.market_value + self.cash), \
-            "\nmarket value = " , self.market_value, "\ncapital = " , self.cash )
+    def _moving_average(self, prices, n):
+        mas = []
 
-    def Rechange(self, _cash):
-        self.cash += _cash
+        if n == 1:
+            mas.append(prices[0])
+            for i in range(1, len(prices)):
+                mas.append(prices[i-1])
 
-    def Cash(self, _capital):
-        if( self.cash >= _capital ):
-            self.cash -= _capital
+        elif n == 2:
+            mas.append(prices[0])
+            mas.append(prices[0])
+            for i in range(2, len(prices)):
+                mas.append((prices[i-1] + prices[i-2])/2)
+
         else:
-            raise ValueError("Insufficient account balance")
+            m1 = int(n/2)
+            m2 = n - m1
 
-    def Order(self, code, name, price, volume):
-        _value = price*volume
-        if( self.cash - _value < 0 ):
-            raise ValueError("not sufficient funds.")
-        self.cash -= _value
+            if m1 not in self.ma_indexs:
+                self.ma_indexs[m1] = self._moving_average(prices, m1)
+            if m2 not in self.ma_indexs:
+                self.ma_indexs[m2] = self._moving_average(prices, m2)
 
-        absv = abs(_value)
-        if absv * 0.001 < 5:
-            _cost = 5
+            hs1 = self.ma_indexs[m1]
+            hs2 = self.ma_indexs[m2]
+            for i in range(0, m2):
+                mas.append(hs2[i])
+            for i in range(m2, len(prices)):
+                mas.append((hs2[i]*m2 + hs1[i-m2]*m1)/n)
+                # _ma = hs2[i]*m2 + hs1[i-m2]*m1
+                # mas.append(_ma/n)
+
+        self.ma_indexs[n] = mas
+        return mas
+
+
+class TurTleIndex:
+    '海龟指标'
+
+    # high_indexs = {}
+    # low_indexs = {}
+    # high = []
+    # low = []
+
+    def __init__(self, highs, lows, hn, ln):
+        self.high_indexs = {}
+        self.low_indexs = {}
+
+        self.high = np.asarray(highs)
+        self.low  = np.asarray(lows )
+
+        self._highest_price(self.high, hn)
+        self._lowest_price (self.low,  ln)
+
+    def _highest_price(self, x, n):
+        hs = []
+
+        if n == 1:
+            hs.append(x[0])
+            for i in range(1, len(x)):
+                hs.append(x[i-1])
+
+        elif n == 2:
+            hs.append(x[0])
+            hs.append(x[0])
+            for i in range(2, len(x)):
+                hs.append(max(x[i-1], x[i-2]))
+
         else:
-            _cost = absv * 0.001
+            m1 = int(n/2)
+            m2 = n - m1
 
-        if volume < 0:
-            _cost += absv * 0.001
-        _cost += absv * 0.00002
-        self.cost += _cost
+            if m1 not in self.high_indexs:
+                self.high_indexs[m1] = self._highest_price(x, m1)
+            if m2 not in self.high_indexs:
+                self.high_indexs[m2] = self._highest_price(x, m2)
 
-        if  code in self.stocks.index : 
-            if( self.stocks.loc[code]['volume'] + volume < 0 ):
-                raise ValueError("Don't naked short sale.")
-            _row = self.stocks.loc[code]
-            _volume = _row.volume + volume
-            if _volume == 0:
-                _cost = _row.cost
+            hs1 = self.high_indexs[m1]
+            hs2 = self.high_indexs[m2]
+            for i in range(0, m2):
+                hs.append(hs2[i])
+            for i in range(m2, len(x)):
+                hs.append(max(hs2[i], hs1[i-m2]))
+
+        self.high_indexs[n] = hs
+        return hs
+
+    def highest_price(self, x, n):
+        return self._highest_price(np.asarray(x), n)
+
+    def _lowest_price(self, x, n):
+        ls = []
+
+        if n == 1:
+            ls.append(x[0])
+            for i in range(1, len(x)):
+                ls.append(x[i-1])
+
+        elif n == 2:
+            ls.append(x[0])
+            ls.append(x[0])
+            for i in range(2, len(x)):
+                ls.append(min(x[i-1], x[i-2]))
+
+        else:
+            m1 = int(n/2)
+            m2 = n - m1
+
+            if m1 not in self.low_indexs:
+                self.low_indexs[m1] = self._lowest_price(x, m1)
+            if m2 not in self.low_indexs:
+                self.low_indexs[m2] = self._lowest_price(x, m2)
+
+            ls1 = self.low_indexs[m1]
+            ls2 = self.low_indexs[m2]
+            for i in range(0, m2):
+                ls.append(ls2[i])
+            for i in range(m2, len(x)):
+                ls.append(min(ls2[i], ls1[i-m2]))
+
+        self.low_indexs[n] = ls
+        return ls
+
+    def lowest_price(self, x, n):
+        return self._lowest_price(np.asarray(x), n)
+
+
+def list_multi(x):
+    x *= 0.01
+    return x
+
+def turtle_test(account, code, stock_data, stype = 'stock'):
+    _date = datetime.datetime.strptime('20080101', '%Y%m%d')
+    start_date = date2num(_date)
+    _date = datetime.datetime.strptime('20190101', '%Y%m%d')
+    end_date = date2num(_date)
+
+    dates, data_list, ave_price, volumes = parse_stock_data(stock_data)
+    data_table = np.transpose( data_list )
+
+    if stype == 'index':
+        ave_price = list(map(list_multi, ave_price))
+        data_table[1] = list(map(list_multi, data_table[1]))
+        data_table[2] = list(map(list_multi, data_table[2]))
+        data_table[3] = list(map(list_multi, data_table[3]))
+        data_table[4] = list(map(list_multi, data_table[4]))
+        data_list = np.transpose( data_table )
+
+
+    avema = MovingAverage(ave_price, 240)
+    avma240 = avema.ma_indexs[240]
+    wavema = MovingAverage(data_table[2] - data_table[3], 20)
+    wvma20 = wavema.ma_indexs[20]
+
+    turtle = TurTleIndex(data_table[2], data_table[3], 55, 20)
+    h55 = turtle.high_indexs[55]
+    l20 = turtle.low_indexs[20]
+
+    long_price = 0
+    long_count = 0
+    cash_unit = 0
+    market_values = []
+    stock_volumes = []
+
+    for n in range(0, len(stock_data)):
+        _date, _open, _high, _low, _close = data_list[n][0:5]
+
+        if _date < start_date or _date > end_date:
+            account.UpdateValue({code: _close})
+            market_values.append(account.market_value *.000025)
+            stock_volumes.append(0)
+            continue
+
+        # if long_count > 0 and data_list[n][3] < l20[n]:
+        #     volume = account.stocks.at[code, 'volume']
+        #     account.Order(code, _open, -volume, _date)
+        #     long_count = 0
+
+        if long_count > 0 and (data_list[n][3] < l20[n] or data_list[n][3] < long_price - wvma20[n]*3):
+            volume = account.stocks.at[code, 'volume']
+            account.Order(code, _open, -volume, _date)
+            long_count = 0
+
+        if h55[n] < data_list[n][2] and not long_count:
+            # print(account.cash, h55[n], l20[n], wvma20[n])
+            # print(_open, _high, _low, _close)
+
+            # volume = account.cash * .005 / wvma20[n]
+            # volume = int(volume/100) * 100
+            # cash_unit = volume * h55[n]
+
+            cash_unit = account.cash * .07 * h55[n] / wvma20[n]
+            if _open < h55[n]:
+                long_price = h55[n]
             else:
-                _cost = (_row.volume*_row.cost + _cost + _value) / _volume
-            # _cost = price*volune + _row.volume*_row.cost
-            self.stocks.loc[code] = [name, _volume, _cost, _volume*price]
+                long_price = _open
 
-        else:
-            if( volume <= 0 ):
-                raise ValueError("Don't naked short sale.")
-            _cost = (_cost + _value) / volume
-            _row = {'name': [name], 'volume': [volume], 'cost': [_cost], 'market_value': [_value]}
-            _index = [code]
-            self.stocks = self.stocks.append(pf.DataFrame(_row, _index))
+            volume = cash_unit / long_price
+            volume = int(volume/100) * 100
+            account.Order(code, long_price, volume, _date)
+            long_price = long_price + wvma20[n]
+            long_count = long_count+1
 
-
-acc1 = StockAccount(10000)
-acc1.Order("601857", "zhongguoshiyou", 7.7, 400)
-acc1.Order("601318", "zhongguopingan", 62.18, 100)
-acc1.Order("601857", "zhongguoshiyou", 7.5, -200)
-print(acc1.cash, acc1.cost)
-print(acc1.stocks)
-
-dataset = StockDataSet()
-dataset.read('601857')
-print(dataset.stocks['601857'])
-
-# acc1.stocks.to_csv('./data/account.csv')
-
-
-# print(acc1.stocks.loc['601318'])
-
-
-# hist_data = pro.fund_daily(ts_code='150018.SZ', 
-#     start_date='20180101', end_date='20181208')
-
-# hist_data.info()
-# print(hist_data)
-
-
-    # stocks = pf.DataFrame()
-# df1 = pf.DataFrame([[1, 2], [3, 4]], columns=list('AB'))
-# df2 = pf.DataFrame([[5, 6], [7, 8]], columns=list('AB'))
-# print(df1)
-# print(df2)
-# df1 = df1.append(df2, ignore_index=True)
-# print(df1)
-
-
-    # stocks = []
-    # stocks = pf.DataFrame(columns=['name', 'volume', 'market_value'])
-            # self.stocks.loc[code] = {'name': [name], 'volume': [volume], 'market_value': [_value]}
-            # [name, volume, volume*price]
-
-        # _row = {'code': [code], 'name': [name], 'volume': [volume], 'market_value': [_value]}
-        # self.stocks = self.stocks.append(pf.DataFrame(_row), ignore_index=True)
-        
-            # _row.volume += volume
-            # _row.market_value = _row.volume *price
-            # self.stocks.update(_row)
-            # self.stocks.loc[code] = _row
-            # self.stocks.loc[code]['volume'] += volume
-            # self.stocks.loc[code]['market_value'] = self.stocks.loc[code]['volume'] * price
+        if long_count > 0 and data_list[n][2] > long_price and long_count < 4:
+            if _open > long_price:
+                long_price = _open
             
-        # _row = [code, name, volume, _value]
-        # _row = {'code': code, 'name': name, 'volume': volume, 'market_value': _value}
-        # self.stocks.append(_row)
+            volume = cash_unit / long_price
+            volume = int(volume/100) * 100
+            account.Order(code, long_price, volume, _date)
+            long_price = long_price + wvma20[n]
+            long_count = long_count+1
 
-        # _row = pf.DataFrame([[code], [name], [volume], [_value]], columns=['code','name','volume', 'market_value'])
-        # _row = pf.DataFrame({'code': code, 'name': name, 'volume': volume, 'market_value': _value})
+        account.UpdateValue({code: _close})
+        market_values.append(account.market_value *.000025)
+        if  code in account.stocks.index:
+            volume = account.stocks.at[code, 'volume']
+        else:
+            volume = 0
+        stock_volumes.append(volume)
 
-        # _row = pf.DataFrame(_row)
-        # print(_row)
-        # self.stocks.append({'code': code, 'name': name, 'volume': volume, 'market_value': _value}, ignore_index=True)
+    fig,[ax1,ax2] = plt.subplots(2,1,sharex=True)
+    fig.subplots_adjust(left=0.05, bottom=0.05, right=0.95, top=0.95)
+    # plt.subplots_adjust(left=0.2, bottom=0.2, right=0.8, top=0.8，hspace=0.2, wspace=0.3)
 
-        #     if -_value * 0.002 < 5:
-        #         _cost += 5
-        #     else
-        #         _cost = _value * 0.001    
-        #     _cost = -_value * 0.002
-        # else:
-        #     _cost = _value * 0.001
+    ax1.xaxis_date()
+    ax1.set_title(code)
+    ax1.set_ylabel("price")
 
-# df2 = pf.read_csv('./data/account.csv', index_col=0)
-# print(df2)
-# exit(0)
+    plt.xticks(rotation=45)
+    plt.yticks()
+
+    mpf.candlestick_ohlc(ax1, data_list, width=1.5, colorup='r', colordown='green')
+    ax1.plot(dates, h55, color='y', lw=2, label='high (55)')
+    ax1.plot(dates, l20, color='b', lw=2, label='low (20)')
+    ax1.plot(dates, avma240, color='g', lw=2, label='MA (240)')
+    ax1.plot(dates, market_values, color='r', lw=2, label='MV')
+
+    # ax2.bar(dates, volumes, width=0.75)
+    ax2.plot(dates, wvma20, color='r', lw=2, label='wave')
+    ax2.plot(dates, stock_volumes, color='r', lw=2, label='volumes')
+    ax2.set_ylabel('Volume')
+
+    plt.xlabel("date")
+    plt.grid()
+    plt.show()
+
+
+if __name__ == "__main__":
+    dataset = StockDataSet()
+    account = StockAccount(100000)
+
+    startdate = '20180101'
+    enddate = '20181201'
+    stype = 'stock'
+
+    parser = argparse.ArgumentParser(description="show example")
+    parser.add_argument('filename', default=['601857.sh'], nargs='*')
+    parser.add_argument("-s", "--start_date", help="start date")
+    parser.add_argument("-e", "--end_date", help="end date")
+    parser.add_argument("-t", "--data_type", help="end date")
+
+    ARGS = parser.parse_args()
+    if ARGS.start_date:
+        startdate = str(ARGS.start_date)
+    if ARGS.end_date:
+        enddate = str(ARGS.end_date)
+    if ARGS.data_type:
+        stype = str(ARGS.data_type)
+    if ARGS.filename:
+        stock_codes = ARGS.filename
+
+    for code in stock_codes:
+        dataset.load(code, startdate, enddate, stype)
+        turtle_test(account, code, dataset.stocks[code], stype)
+        print(account.cash, account.market_value)
+
+
+
+    # print(data_list[20])
+    # print(data_table[0][20:25])
+    # print(data_table[1][20:25])
+    # print(data_table[2][20:25])
+    # print(data_table[3][20:25])
+    # print(data_table[4][20:25])
+
+
+    # print(data_list[20])
+    # print(data_table[0][20:25])
+    # print(data_table[1][20:25])
+    # print(data_table[2][20:25])
+    # print(data_table[3][20:25])
+    # print(data_table[4][20:25])
+
+    # h55 = turtle.highest_price(data_table[2], 55)
+    # l20 = turtle.lowest_price (data_table[3], 20)
+
+    # l20 = lowest_price(data_table[3], 20)
+
+    # h55 = highest_price(data_table[2], 55)
+    # h20 = highest_price(data_table[2], 20)
+
+    # print(ave_price[250: 270])
+    # print(avema.ma_indexs[1][250: 270])
+    # print(avema.ma_indexs[2][250: 270])
+    # print(avema.ma_indexs[3][250: 270])
+    # print(avema.ma_indexs[5][250: 270])
+    # print(avma240[250: 270])
+
+# hs_set = {}
+# def highest_price_core(x, n):
+#     hs = []
+
+#     if n == 1:
+#         hs.append(x[0])
+#         for i in range(1, len(x)):
+#             hs.append(x[i-1])
+
+#     elif n == 2:
+#         hs.append(x[0])
+#         hs.append(x[0])
+#         for i in range(2, len(x)):
+#             hs.append(max(x[i-1], x[i-2]))
+
+#     else:
+#         m1 = int(n/2)
+#         m2 = n - m1
+
+#         if m1 not in hs:
+#             hs_set[m1] = highest_price_core(x, m1)
+#         if m2 not in hs:
+#             hs_set[m2] = highest_price_core(x, m2)
+
+#         hs1 = hs_set[m1]
+#         hs2 = hs_set[m2]
+#         for i in range(0, m2):
+#             hs.append(hs2[i])
+#         for i in range(m2, len(x)):
+#             hs.append(max(hs2[i], hs1[i-m2]))
+
+#     return hs
+
+# def highest_price(x, n):
+#     return highest_price_core(np.asarray(x), n)
+
+#     # x = np.asarray(x) 
+#     # hs = []
+#     # hs.append(x[0])
+
+#     # for i in range(1, len(x)):
+#     #     h = x[i-1]
+#     #     start = max(0, i-n)
+#     #     for j in range(start, i):
+#     #         h = max(h, x[j])
+#     #     hs.append(h)
+
+#     # return hs
+
+# def lowest_price(x, n):
+#     x = np.asarray(x) 
+#     ls = []
+#     ls.append(x[0])
+
+#     for i in range(1, len(x)):
+#         l = x[i-1]
+#         start = max(0, i-n)
+#         for j in range(start, i):
+#             l = min(l, x[j])
+#         ls.append(l)
+
+#     return ls
