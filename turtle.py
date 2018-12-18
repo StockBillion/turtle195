@@ -242,6 +242,11 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
             volume = 0
         stock_volumes.append(volume)
 
+
+    print( pf.DataFrame(account.records, columns=['order_time', 'volume', 'price', 
+        'amount', 'commision', 'total', 'cash', 'market value']) )
+    print( account.long_count, account.short_count, account.succeed)
+
     fig,[ax1,ax2] = plt.subplots(2,1,sharex=True)
     fig.subplots_adjust(left=0.05, bottom=0.05, right=0.95, top=0.95)
     # plt.subplots_adjust(left=0.2, bottom=0.2, right=0.8, top=0.8，hspace=0.2, wspace=0.3)

@@ -7,10 +7,15 @@ import pandas as pf
 class StockAccount:
     '股票交易账户'
 
+    stocks = pf.DataFrame()
     market_value = 0
     cash = 0
     cost = 0
-    stocks = pf.DataFrame()
+    long_count = 0
+    short_count= 0
+    succeed = 0
+    records = []
+
 
     def __init__(self, cash):
         self.cash = cash
@@ -37,41 +42,58 @@ class StockAccount:
 
     def Order(self, code, price, volume, order_time):
         # print(code, price, volume, price*volume, self.cash)
-        order_time = num2date(order_time).strftime('%Y%m%d')
         _value = price*volume
         # if( self.cash < _value ):
         #     raise ValueError("not sufficient funds.")
+
         self.cash -= _value
+        order_time = num2date(order_time).strftime('%Y%m%d')
 
         absv = abs(_value)
-        if absv * 0.001 < 5:
-            _cost = 5
+        if absv * 0.001 < 5: # 手续费 千一
+            _commision = 5
         else:
-            _cost = absv * 0.001
+            _commision = absv * 0.001
 
-        if volume < 0:
-            _cost += absv * 0.001
-        _cost += absv * 0.00002
-        self.cost += _cost
+        if volume < 0: # 印花税,单边收
+            _commision += absv * 0.001
+        _commision += absv * 0.00002 # 过户费
+        self.cost += _commision
+
 
         if  code in self.stocks.index:
             if( self.stocks.loc[code]['volume'] + volume < 0 ):
                 raise ValueError("Don't naked short sale.")
+
             _row = self.stocks.loc[code]
             _volume = _row.volume + volume
             if _volume == 0:
-                _cost = _row.cost
+                _cost_price = _row.cost_price
+                if _row.volume*_row.cost_price + _commision + _value < 0: 
+                    self.succeed += 1
             else:
-                _cost = (_row.volume*_row.cost + _cost + _value) / _volume
-            self.stocks.loc[code] = [_volume, price, _volume*price, _cost, order_time]
+                _cost_price = (_row.volume*_row.cost_price + _commision + _value) / _volume
+            _value = _volume*price
+            self.stocks.loc[code] = [_volume, price, _value, _cost_price, order_time]
 
         else:
             if( volume <= 0 ):
                 raise ValueError("Don't naked short sale.")
-            _cost = (_cost + _value) / volume
-            _row = {'volume': [volume], 'price': [price], 'market_value': [_value], 'cost': [_cost], 'order_time': [order_time]}
+            _cost_price = (_commision + _value) / volume
+            _row = {'volume': [volume], 'price': [price], 'market_value': [_value], 
+                'cost_price': [_cost_price], 'order_time': [order_time]}
             _index = [code]
             self.stocks = self.stocks.append(pf.DataFrame(_row, _index))
+
+        if volume < 0:
+
+            self.short_count+= 1
+        else:
+            self.long_count += 1
+
+        _record = (order_time, volume, price, volume*price, _commision, (volume*price + _commision), 
+            self.cash, self.cash + _value)
+        self.records.append(_record)
 
         # print(self.stocks)
         # print(self.cash, self.market_value, self.stocks.loc[code, 'volume'], 

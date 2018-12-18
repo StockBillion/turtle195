@@ -91,9 +91,10 @@ class StockDataSet:
 
             if _weekday == 0:
                 if start:
-                    _row = {'ts_code': [ts_code], 'trade_date': [trade_date], 'open': [_open], 'close': [_close], 'high': [_high], 'low': [_low], 
-                        'pre_close': [pre_close], 'change': [change], 'pct_chg': [pct_chg], 'vol': [_vol], 'amount': [_amount]}
-                    # weekly_datas = weekly_datas.append(pf.DataFrame(_row, _index))
+                    _row = {'ts_code': [ts_code], 'trade_date': [trade_date], 
+                        'open': [_open], 'close': [_close], 'high': [_high], 'low': [_low], 
+                        'pre_close': [pre_close], 'change': [change], 'pct_chg': [pct_chg], 
+                        'vol': [_vol], 'amount': [_amount]}
                     _index = [kidx]
                     weekly_datas = weekly_datas.append(pf.DataFrame(_row, _index))
                     kidx = kidx+1
@@ -113,11 +114,7 @@ class StockDataSet:
                 _vol += vol
                 _amount += amount
 
-            # week = _weekday
-
         return weekly_datas
-
-
 
 
     def _download(self, code, startdate, enddate, stype, time_unit = 'daily'):
@@ -205,6 +202,8 @@ if __name__ == "__main__":
 
     for code in stock_codes:
         dataset.load(code, startdate, enddate, stype)
+
+
 
         # if time_unit == 'daily':
         #     if stype == 'index':
