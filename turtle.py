@@ -152,7 +152,7 @@ def list_multi(x):
     x *= 0.01
     return x
 
-def turtle_test(account, code, stock_data, stype = 'stock'):
+def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, short_cycle = 10):
     _date = datetime.datetime.strptime('20080101', '%Y%m%d')
     start_date = date2num(_date)
     _date = datetime.datetime.strptime('20190101', '%Y%m%d')
@@ -175,9 +175,9 @@ def turtle_test(account, code, stock_data, stype = 'stock'):
     wavema = MovingAverage(data_table[2] - data_table[3], 20)
     wvma20 = wavema.ma_indexs[20]
 
-    turtle = TurTleIndex(data_table[2], data_table[3], 55, 20)
-    h55 = turtle.high_indexs[55]
-    l20 = turtle.low_indexs[20]
+    turtle = TurTleIndex(data_table[2], data_table[3], long_cycle, short_cycle)
+    h55 = turtle.high_indexs[long_cycle]
+    l20 = turtle.low_indexs[short_cycle]
 
     long_price = 0
     long_count = 0
@@ -212,7 +212,7 @@ def turtle_test(account, code, stock_data, stype = 'stock'):
             # volume = int(volume/100) * 100
             # cash_unit = volume * h55[n]
 
-            cash_unit = account.cash * .07 * h55[n] / wvma20[n]
+            cash_unit = account.cash * .03 * h55[n] / wvma20[n]
             if _open < h55[n]:
                 long_price = h55[n]
             else:
@@ -254,8 +254,8 @@ def turtle_test(account, code, stock_data, stype = 'stock'):
     plt.yticks()
 
     mpf.candlestick_ohlc(ax1, data_list, width=1.5, colorup='r', colordown='green')
-    ax1.plot(dates, h55, color='y', lw=2, label='high (55)')
-    ax1.plot(dates, l20, color='b', lw=2, label='low (20)')
+    ax1.plot(dates, h55, color='y', lw=2, label='high (long_cycle)')
+    ax1.plot(dates, l20, color='b', lw=2, label='low (short_cycle)')
     ax1.plot(dates, avma240, color='g', lw=2, label='MA (240)')
     ax1.plot(dates, market_values, color='r', lw=2, label='MV')
 
@@ -276,12 +276,14 @@ if __name__ == "__main__":
     startdate = '20180101'
     enddate = '20181201'
     stype = 'stock'
+    time_unit = 'daily'
 
     parser = argparse.ArgumentParser(description="show example")
     parser.add_argument('filename', default=['601857.sh'], nargs='*')
     parser.add_argument("-s", "--start_date", help="start date")
     parser.add_argument("-e", "--end_date", help="end date")
-    parser.add_argument("-t", "--data_type", help="end date")
+    parser.add_argument("-t", "--data_type", help="data type")
+    parser.add_argument("-u", "--time_unit", help="time unit")
 
     ARGS = parser.parse_args()
     if ARGS.start_date:
@@ -292,10 +294,12 @@ if __name__ == "__main__":
         stype = str(ARGS.data_type)
     if ARGS.filename:
         stock_codes = ARGS.filename
+    if ARGS.time_unit:
+        time_unit = ARGS.time_unit
 
     for code in stock_codes:
-        dataset.load(code, startdate, enddate, stype)
-        turtle_test(account, code, dataset.stocks[code], stype)
+        dataset.load(code, startdate, enddate, stype, time_unit)
+        turtle_test(account, code, dataset.stocks[code], stype, 55, 20)
         print(account.cash, account.market_value)
 
 

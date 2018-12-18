@@ -35,7 +35,7 @@ class StockDataSet:
     '股票数据集合'
     stocks = {}
     
-    def join(self, csv_data2, net_data1):
+    def _join(self, csv_data2, net_data1):
         len1 = len(net_data1)
         len2 = len(csv_data2)
         print('join csv_data', len2, ' net_data1', len1)
@@ -70,56 +70,114 @@ class StockDataSet:
 
         return data0
 
-    def read(self, code):
+    def _read(self, code, time_unit = 'daily'):
         try:
-            self.stocks[code] = pf.read_csv('./data/' + code + '.csv', index_col=0, dtype = {'trade_date' : str})
+            self.stocks[code] = pf.read_csv('./data/' + code + '.' + time_unit + '.csv', 
+                index_col=0, dtype = {'trade_date' : str})
             return self.stocks[code]
         except IOError: 
             return pf.DataFrame()
 
-    def daily(self, code, startdate, enddate, stype):
+    def _daily2weekly(self, daily_datas):
+        weekly_datas = pf.DataFrame()
+        kidx = 0
+        start = 0
+        
+        for rnum, row in daily_datas.iterrows():
+            ts_code, trade_date, open, close, high, low = row[0:6]
+            pre_close,change,pct_chg,vol,amount = row[6:11]
+            _date = datetime.datetime.strptime(trade_date, '%Y%m%d')
+            _weekday = _date.weekday()
+
+            if _weekday == 0:
+                if start:
+                    _row = {'ts_code': [ts_code], 'trade_date': [trade_date], 'open': [_open], 'close': [_close], 'high': [_high], 'low': [_low], 
+                        'pre_close': [pre_close], 'change': [change], 'pct_chg': [pct_chg], 'vol': [_vol], 'amount': [_amount]}
+                    # weekly_datas = weekly_datas.append(pf.DataFrame(_row, _index))
+                    _index = [kidx]
+                    weekly_datas = weekly_datas.append(pf.DataFrame(_row, _index))
+                    kidx = kidx+1
+
+                start = 1
+                _open = open
+                _close = close
+                _high = high
+                _low = low
+                _vol = vol
+                _amount = amount
+
+            elif start:
+                _close = close
+                _high = max(_high, high)
+                _low = min(_low, low)
+                _vol += vol
+                _amount += amount
+
+            # week = _weekday
+
+        return weekly_datas
+
+
+
+
+    def _download(self, code, startdate, enddate, stype, time_unit = 'daily'):
         print('download ', stype, ' ', code, ' data, from ', startdate, ' to ', enddate)
         startdate = str(startdate)
         enddate = str(enddate)
 
         if stype == 'index':
             hist_data = pro.index_daily(ts_code=code, start_date=startdate, end_date=enddate)
+            if time_unit == 'weekly':
+                hist_data = self._daily2weekly(hist_data)
+            elif time_unit == 'monthly':
+                hist_data = self._daily2monthly(hist_data)
+
         elif stype == 'fund':
             hist_data = pro.fund_daily(ts_code=code, start_date=startdate, end_date=enddate)
+            if time_unit == 'weekly':
+                hist_data = self._daily2weekly(hist_data)
+            elif time_unit == 'monthly':
+                hist_data = self._daily2monthly(hist_data)
+
         else:
-            hist_data = pro.daily(ts_code=code, start_date=startdate, end_date=enddate)
+            if time_unit == 'daily':
+                hist_data = pro.daily(ts_code=code, start_date=startdate, end_date=enddate)
+            elif time_unit == 'weekly':
+                hist_data = pro.weekly(ts_code=code, start_date=startdate, end_date=enddate)
+            elif time_unit == 'monthly':
+                hist_data = pro.monthly(ts_code=code, start_date=startdate, end_date=enddate)
 
         print('download', len(hist_data), 'row data')
         return hist_data
 
-    def load(self, code, startdate, enddate, stype = 'stock'):
-        print('download ', stype, ' ', code, ' data, from ', startdate, ' to ', enddate)
+    def load(self, code, startdate, enddate, stype = 'stock', time_unit = 'daily'):
+        print('download', stype, code, time_unit, 'data, from', startdate, 'to', enddate)
 
         if startdate is not numpy.int64:
             startdate = numpy.int64(startdate)
         if enddate is not numpy.int64:
             enddate = numpy.int64(enddate)
 
-        local_data = self.read(code)
-        _rowcount = len (local_data)
+        local_data = self._read(code, time_unit)
+        _rowcount = len(local_data)
         
         if _rowcount > 0 :
             _head = numpy.int64(local_data.at[0, 'trade_date'])
             _tear = numpy.int64(local_data.at[_rowcount-1, 'trade_date'])
 
             if _head+1 < enddate:
-                down_data = self.daily(code, _head + 1, enddate, stype)
-                local_data = self.join(local_data, down_data)
+                down_data = self._download(code, _head + 1, enddate, stype, time_unit)
+                local_data = self._join(local_data, down_data)
             if _tear-1 > startdate:
-                down_data = self.daily(code, startdate, _tear-1, stype)
-                local_data = self.join(local_data, down_data)
+                down_data = self._download(code, startdate, _tear-1, stype, time_unit)
+                local_data = self._join(local_data, down_data)
         else:
-            down_data = self.daily(code, startdate, enddate, stype)
+            down_data = self._download(code, startdate, enddate, stype, time_unit)
             local_data = down_data
 
         if len(local_data) > _rowcount:
             print('write csv file', len(local_data), 'rows')
-            local_data.to_csv('./data/' + code + '.csv')
+            local_data.to_csv('./data/' + code + '.' + time_unit + '.csv')
         self.stocks[code] = local_data.sort_index(ascending=False)
         
 
@@ -147,3 +205,29 @@ if __name__ == "__main__":
 
     for code in stock_codes:
         dataset.load(code, startdate, enddate, stype)
+
+        # if time_unit == 'daily':
+        #     if stype == 'index':
+        #         hist_data = pro.index_daily(ts_code=code, start_date=startdate, end_date=enddate)
+        #     elif stype == 'fund':
+        #         hist_data = pro.fund_daily(ts_code=code, start_date=startdate, end_date=enddate)
+        #     else:
+        #         hist_data = pro.daily(ts_code=code, start_date=startdate, end_date=enddate)
+        # elif time_unit == 'weekly':
+        #     if stype == 'index':
+        #         hist_data = pro.index_daily(ts_code=code, start_date=startdate, end_date=enddate)
+        #         hist_data = self._daily2weekly(hist_data)
+        #         # hist_data = pro.index_weekly(ts_code=code, start_date=startdate, end_date=enddate)
+        #     elif stype == 'fund':
+        #         hist_data = self._daily2monthly(hist_data)
+        #         # hist_data = pro.fund_weekly(ts_code=code, start_date=startdate, end_date=enddate)
+        #     # else:
+        #         # hist_data = pro.weekly(ts_code=code, start_date=startdate, end_date=enddate)
+        # elif time_unit == 'monthly':
+        #     hist_data = pro.fund_daily(ts_code=code, start_date=startdate, end_date=enddate)
+        #     if stype == 'index':
+        #         # hist_data = pro.index_monthly(ts_code=code, start_date=startdate, end_date=enddate)
+        #     elif stype == 'fund':
+        #         # hist_data = pro.fund_monthly(ts_code=code, start_date=startdate, end_date=enddate)
+        #     # else:
+        #         # hist_data = pro.monthly(ts_code=code, start_date=startdate, end_date=enddate)
