@@ -6,10 +6,13 @@ import datetime
 import matplotlib.pyplot as plt
 import mpl_finance as mpf
 import pandas as pf
+import math
 
 from stockdata import StockDataSet, parse_stock_data
 from account import StockAccount
 
+fixed_invest = 0 # 3000
+init_invest  = 100000
 
 class MovingAverage:
     '股票的移动平均线'
@@ -152,6 +155,7 @@ def list_multi(x):
     x *= 0.01
     return x
 
+
 def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, short_cycle = 10):
     _date = datetime.datetime.strptime('20080101', '%Y%m%d')
     start_date = date2num(_date)
@@ -162,12 +166,14 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
     data_table = np.transpose( data_list )
 
     if stype == 'index':
-        ave_price = list(map(list_multi, ave_price))
+        # _data_table = [[], [], [], [], []]
+        # _data_table[0] = data_table[0]
         data_table[1] = list(map(list_multi, data_table[1]))
         data_table[2] = list(map(list_multi, data_table[2]))
         data_table[3] = list(map(list_multi, data_table[3]))
         data_table[4] = list(map(list_multi, data_table[4]))
         data_list = np.transpose( data_table )
+        ave_price = list(map(list_multi, ave_price))
 
 
     avema = MovingAverage(ave_price, 240)
@@ -182,6 +188,7 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
     long_price = 0
     long_count = 0
     cash_unit = 0
+    month = -1
     market_values = []
     stock_volumes = []
 
@@ -190,10 +197,15 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
 
         if _date < start_date or _date > end_date:
             account.UpdateValue({code: _close})
-            market_values.append(account.market_value *.000025)
+            market_values.append(account.market_value)
             stock_volumes.append(0)
             continue
 
+        _month = num2date(_date).month
+        if month != _month:
+            month = _month
+            account.Rechange(fixed_invest)
+            
         # if long_count > 0 and data_list[n][3] < l20[n]:
         #     volume = account.stocks.at[code, 'volume']
         #     account.Order(code, _open, -volume, _date)
@@ -205,6 +217,7 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
             long_count = 0
 
         if h55[n] < data_list[n][2] and not long_count:
+
             # print(account.cash, h55[n], l20[n], wvma20[n])
             # print(_open, _high, _low, _close)
 
@@ -212,7 +225,7 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
             # volume = int(volume/100) * 100
             # cash_unit = volume * h55[n]
 
-            cash_unit = account.cash * .03 * h55[n] / wvma20[n]
+            cash_unit = account.cash * .02 * h55[n] / wvma20[n]
             if _open < h55[n]:
                 long_price = h55[n]
             else:
@@ -220,9 +233,10 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
 
             volume = cash_unit / long_price
             volume = int(volume/100) * 100
-            account.Order(code, long_price, volume, _date)
+            if volume >= 100: 
+                account.Order(code, long_price, volume, _date)
+                long_count = long_count+1
             long_price = long_price + wvma20[n]
-            long_count = long_count+1
 
         if long_count > 0 and data_list[n][2] > long_price and long_count < 4:
             if _open > long_price:
@@ -235,7 +249,7 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
             long_count = long_count+1
 
         account.UpdateValue({code: _close})
-        market_values.append(account.market_value *.000025)
+        market_values.append(account.market_value)
         if  code in account.stocks.index:
             volume = account.stocks.at[code, 'volume']
         else:
@@ -243,9 +257,32 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
         stock_volumes.append(volume)
 
 
-    print( pf.DataFrame(account.records, columns=['order_time', 'volume', 'price', 
-        'amount', 'commision', 'total', 'cash', 'market value']) )
-    print( account.long_count, account.short_count, account.succeed)
+    account.save_records('./data', code)
+    account.status_info()
+
+    # records = pf.DataFrame(account.records, columns=['order_time', 'volume', 'price', 
+    #     'amount', 'commision', 'total', 'cash', 'credit', 'market value', 'lever', 'back'])
+    # print( records )
+    # print( account.long_count, account.short_count, account.succeed, 
+    #     account.cash, account.credit, account.market_value, account.cost, 
+    #     account.max_value, account.max_back, account.max_lever)
+
+    # records.to_csv('./data/' + code + '.records.csv')
+
+    # print( market_values )
+    # print( avma240 )
+
+    data_table[1] = list(map(lambda x: math.log(x), data_table[1]))
+    data_table[2] = list(map(lambda x: math.log(x), data_table[2]))
+    data_table[3] = list(map(lambda x: math.log(x), data_table[3]))
+    data_table[4] = list(map(lambda x: math.log(x), data_table[4]))
+    data_list = np.transpose( data_table )
+
+    h55 = list(map(lambda x: math.log(x), h55))
+    l20 = list(map(lambda x: math.log(x), l20))
+    avma240 = list(map(lambda x: math.log(x), avma240))
+    market_values = list(map(lambda x: (math.log(x)-9), market_values))
+
 
     fig,[ax1,ax2] = plt.subplots(2,1,sharex=True)
     fig.subplots_adjust(left=0.05, bottom=0.05, right=0.95, top=0.95)
@@ -258,10 +295,11 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
     plt.xticks(rotation=45)
     plt.yticks()
 
+
     mpf.candlestick_ohlc(ax1, data_list, width=1.5, colorup='r', colordown='green')
     ax1.plot(dates, h55, color='y', lw=2, label='high (long_cycle)')
     ax1.plot(dates, l20, color='b', lw=2, label='low (short_cycle)')
-    ax1.plot(dates, avma240, color='g', lw=2, label='MA (240)')
+    # ax1.plot(dates, avma240, color='g', lw=2, label='MA (240)')
     ax1.plot(dates, market_values, color='r', lw=2, label='MV')
 
     # ax2.bar(dates, volumes, width=0.75)
@@ -271,12 +309,12 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
 
     plt.xlabel("date")
     plt.grid()
+    plt.savefig("turtle2055.png")
     plt.show()
-
 
 if __name__ == "__main__":
     dataset = StockDataSet()
-    account = StockAccount(100000)
+    account = StockAccount(init_invest)
 
     startdate = '20180101'
     enddate = '20181201'
@@ -305,7 +343,7 @@ if __name__ == "__main__":
     for code in stock_codes:
         dataset.load(code, startdate, enddate, stype, time_unit)
         turtle_test(account, code, dataset.stocks[code], stype, 55, 20)
-        print(account.cash, account.market_value)
+        # print(account.cash, account.market_value, account.cost, account.credit)
 
 
 
