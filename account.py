@@ -68,6 +68,10 @@ class StockAccount:
             row['market_value'] = row['price']*row['volume']
             self.market_value += row['market_value']
 
+    def ProfitDaily(self):
+        self.cash *= 1.0001
+        self.credit *= 1.0003
+
     def Order(self, code, price, volume, order_time):
         # print(code, price, volume, price*volume, self.cash)
         _value = price*volume
