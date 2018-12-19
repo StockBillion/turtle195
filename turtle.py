@@ -11,7 +11,7 @@ import math
 from stockdata import StockDataSet, parse_stock_data
 from account import StockAccount
 
-fixed_invest = 0 # 3000
+fixed_invest = 3000
 init_invest  = 100000
 
 class MovingAverage:
