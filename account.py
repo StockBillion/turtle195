@@ -77,7 +77,7 @@ class StockAccount:
 
 
     def ProfitDaily(self):
-        self.cash *= 1.0001
+        self.cash *= 1.00005
         self.credit *= 1.0003
 
     def Order(self, code, price, volume, order_time):

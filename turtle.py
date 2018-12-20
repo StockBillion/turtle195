@@ -10,8 +10,9 @@ import math
 
 from stockdata import StockDataSet, parse_stock_data
 from account import StockAccount
+from movingave import MovingAverage
 
-fixed_invest = 0#1000
+fixed_invest = 3000
 init_invest  = 100000
 
 
@@ -162,14 +163,14 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
         # else:
         #     up240 = wvma20[n]*2 < long_price - data_list[n][3]
 
-        up240 = data_list[n][3] < long_price - wvma20[n]*3
-        if long_count > 0 and (data_list[n][3] < l20[n] or up240):
+        stop_loss = data_list[n][3] < long_price - wvma20[n]*3
+        if long_count > 0 and (data_list[n][3] < l20[n] or stop_loss):
             volume = account.stocks.at[code, 'volume']
             account.Order(code, _open, -volume, _date)
             long_count = 0
 
         if h55[n] < data_list[n][2] and not long_count:
-            cash_unit = account.cash * .01 * h55[n] / wvma20[n]
+            cash_unit = account.cash * .007 * h55[n] / wvma20[n]
             # cash_unit = account.cash * 0.5
             # cash_unit = account.cash * min(0.01 * h55[n] / wvma20[n], 0.5)
             if _open < h55[n]:
@@ -244,8 +245,8 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
 
     plt.xlabel("date")
     plt.grid()
-    plt.savefig("turtle2055.png")
-    # plt.show()
+    plt.savefig("./images/turtle2055.png")
+    plt.show()
 
 if __name__ == "__main__":
     dataset = StockDataSet()
@@ -277,11 +278,10 @@ if __name__ == "__main__":
 
     for code in stock_codes:
         stock_data = dataset.load(code, startdate, enddate, stype, time_unit)
-        turtle_test(account, code, stock_data, stype, 20, 10)
+        turtle_test(account, code, stock_data, stype, 55, 20)
+
 
         # print(account.cash, account.market_value, account.cost, account.credit)
-
-
 
         # if long_count > 0 and data_list[n][3] < l20[n]:
         #     volume = account.stocks.at[code, 'volume']
