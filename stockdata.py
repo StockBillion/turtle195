@@ -175,7 +175,9 @@ class StockDataSet:
         if len(local_data) > _rowcount:
             print('write csv file', len(local_data), 'rows')
             local_data.to_csv('./data/' + code + '.' + time_unit + '.csv')
+
         self.stocks[code] = local_data.sort_index(ascending=False)
+        return self.stocks[code]
         
 
 if __name__ == "__main__":
@@ -185,7 +187,7 @@ if __name__ == "__main__":
     stype = 'stock'
 
     parser = argparse.ArgumentParser(description="show example")
-    parser.add_argument('filename', default=['601857.sh'], nargs='*')
+    parser.add_argument('stock_codes', default=['601857.sh'], nargs='*')
     parser.add_argument("-s", "--start_date", help="start date")
     parser.add_argument("-e", "--end_date", help="end date")
     parser.add_argument("-t", "--data_type", help="end date")
@@ -197,8 +199,8 @@ if __name__ == "__main__":
         enddate = ARGS.end_date
     if ARGS.data_type:
         stype = str(ARGS.data_type)
-    if ARGS.filename:
-        stock_codes = ARGS.filename
+    if ARGS.stock_codes:
+        stock_codes = ARGS.stock_codes
 
     for code in stock_codes:
         dataset.load(code, startdate, enddate, stype)

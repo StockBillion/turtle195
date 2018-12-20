@@ -68,6 +68,14 @@ class StockAccount:
             row['market_value'] = row['price']*row['volume']
             self.market_value += row['market_value']
 
+        lever = self.credit/self.market_value
+        back_pump = 1 - self.market_value/self.max_value
+        
+        self.max_value = max(self.max_value, self.market_value)
+        self.max_back  = max(self.max_back , back_pump)
+        self.max_lever = max(self.max_lever, lever)
+
+
     def ProfitDaily(self):
         self.cash *= 1.0001
         self.credit *= 1.0003

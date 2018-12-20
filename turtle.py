@@ -11,49 +11,8 @@ import math
 from stockdata import StockDataSet, parse_stock_data
 from account import StockAccount
 
-fixed_invest = 5000
+fixed_invest = 0#1000
 init_invest  = 100000
-
-class MovingAverage:
-    '股票的移动平均线'
-
-    def __init__(self, _prices, _n):
-        self.ma_indexs = {}
-        self.prices = np.asarray(_prices)
-        self._moving_average(self.prices, _n)
-
-    def _moving_average(self, prices, n):
-        mas = []
-
-        if n == 1:
-            mas.append(prices[0])
-            for i in range(1, len(prices)):
-                mas.append(prices[i-1])
-
-        elif n == 2:
-            mas.append(prices[0])
-            mas.append(prices[0])
-            for i in range(2, len(prices)):
-                mas.append((prices[i-1] + prices[i-2])/2)
-
-        else:
-            m1 = int(n/2)
-            m2 = n - m1
-
-            if m1 not in self.ma_indexs:
-                self.ma_indexs[m1] = self._moving_average(prices, m1)
-            if m2 not in self.ma_indexs:
-                self.ma_indexs[m2] = self._moving_average(prices, m2)
-
-            hs1 = self.ma_indexs[m1]
-            hs2 = self.ma_indexs[m2]
-            for i in range(0, m2):
-                mas.append(hs2[i])
-            for i in range(m2, len(prices)):
-                mas.append((hs2[i]*m2 + hs1[i-m2]*m1)/n)
-
-        self.ma_indexs[n] = mas
-        return mas
 
 
 class TurTleIndex:
@@ -165,8 +124,8 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
         ave_price = list(map(list_multi, ave_price))
 
 
-    avema = MovingAverage(ave_price, 240)
-    avma240 = avema.ma_indexs[240]
+    # avema = MovingAverage(ave_price, 240)
+    # avma240 = avema.ma_indexs[240]
     wavema = MovingAverage(data_table[2] - data_table[3], 20)
     wvma20 = wavema.ma_indexs[20]
 
@@ -176,7 +135,7 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
 
     long_price = 0
     long_count = 0
-    cash_unit = 0
+    cash_unit = account.cash * 0.5
     month = -1
     market_values = []
     stock_volumes = []
@@ -195,13 +154,15 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
         if month != _month:
             month = _month
             account.Rechange(fixed_invest)
+            # if month == 1 or month == 7:
+            #     cash_unit = account.cash * min(0.007 * h55[n] / wvma20[n], 0.5)
             
         # if avma240[n] < ave_price[n]:
         #     up240 = wvma20[n]*6 < long_price - data_list[n][3]
         # else:
         #     up240 = wvma20[n]*2 < long_price - data_list[n][3]
 
-        up240 = data_list[n][3] < long_price - wvma20[n]*4
+        up240 = data_list[n][3] < long_price - wvma20[n]*3
         if long_count > 0 and (data_list[n][3] < l20[n] or up240):
             volume = account.stocks.at[code, 'volume']
             account.Order(code, _open, -volume, _date)
@@ -209,6 +170,8 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
 
         if h55[n] < data_list[n][2] and not long_count:
             cash_unit = account.cash * .01 * h55[n] / wvma20[n]
+            # cash_unit = account.cash * 0.5
+            # cash_unit = account.cash * min(0.01 * h55[n] / wvma20[n], 0.5)
             if _open < h55[n]:
                 long_price = h55[n]
             else:
@@ -252,7 +215,7 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
 
     h55 = list(map(lambda x: math.log(x), h55))
     l20 = list(map(lambda x: math.log(x), l20))
-    avma240 = list(map(lambda x: math.log(x), avma240))
+    # avma240 = list(map(lambda x: math.log(x), avma240))
     market_values = list(map(lambda x: (math.log(x)-9), market_values))
 
 
@@ -271,7 +234,7 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
     mpf.candlestick_ohlc(ax1, data_list, width=1.5, colorup='r', colordown='green')
     ax1.plot(dates, h55, color='y', lw=2, label='high (long_cycle)')
     ax1.plot(dates, l20, color='b', lw=2, label='low (short_cycle)')
-    ax1.plot(dates, avma240, color='g', lw=2, label='MA (240)')
+    # ax1.plot(dates, avma240, color='g', lw=2, label='MA (240)')
     ax1.plot(dates, market_values, color='r', lw=2, label='MV')
 
     # ax2.bar(dates, volumes, width=0.75)
@@ -282,7 +245,7 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
     plt.xlabel("date")
     plt.grid()
     plt.savefig("turtle2055.png")
-    plt.show()
+    # plt.show()
 
 if __name__ == "__main__":
     dataset = StockDataSet()
@@ -294,7 +257,7 @@ if __name__ == "__main__":
     time_unit = 'daily'
 
     parser = argparse.ArgumentParser(description="show example")
-    parser.add_argument('filename', default=['601857.sh'], nargs='*')
+    parser.add_argument('stock_codes', default=['601857.sh'], nargs='*')
     parser.add_argument("-s", "--start_date", help="start date")
     parser.add_argument("-e", "--end_date", help="end date")
     parser.add_argument("-t", "--data_type", help="data type")
@@ -307,14 +270,15 @@ if __name__ == "__main__":
         enddate = str(ARGS.end_date)
     if ARGS.data_type:
         stype = str(ARGS.data_type)
-    if ARGS.filename:
-        stock_codes = ARGS.filename
+    if ARGS.stock_codes:
+        stock_codes = ARGS.stock_codes
     if ARGS.time_unit:
         time_unit = ARGS.time_unit
 
     for code in stock_codes:
-        dataset.load(code, startdate, enddate, stype, time_unit)
-        turtle_test(account, code, dataset.stocks[code], stype, 55, 20)
+        stock_data = dataset.load(code, startdate, enddate, stype, time_unit)
+        turtle_test(account, code, stock_data, stype, 20, 10)
+
         # print(account.cash, account.market_value, account.cost, account.credit)
 
 

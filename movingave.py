@@ -10,6 +10,48 @@ import pandas as pf
 from stockdata import StockDataSet, parse_stock_data
 from account import StockAccount
 
+class MovingAverage:
+    '股票的移动平均线'
+
+    def __init__(self, _prices, _n):
+        self.ma_indexs = {}
+        self.prices = np.asarray(_prices)
+        self._moving_average(self.prices, _n)
+
+    def _moving_average(self, prices, n):
+        mas = []
+
+        if n == 1:
+            mas.append(prices[0])
+            for i in range(1, len(prices)):
+                mas.append(prices[i-1])
+
+        elif n == 2:
+            mas.append(prices[0])
+            mas.append(prices[0])
+            for i in range(2, len(prices)):
+                mas.append((prices[i-1] + prices[i-2])/2)
+
+        else:
+            m1 = int(n/2)
+            m2 = n - m1
+
+            if m1 not in self.ma_indexs:
+                self.ma_indexs[m1] = self._moving_average(prices, m1)
+            if m2 not in self.ma_indexs:
+                self.ma_indexs[m2] = self._moving_average(prices, m2)
+
+            hs1 = self.ma_indexs[m1]
+            hs2 = self.ma_indexs[m2]
+            for i in range(0, m2):
+                mas.append(hs2[i])
+            for i in range(m2, len(prices)):
+                mas.append((hs2[i]*m2 + hs1[i-m2]*m1)/n)
+
+        self.ma_indexs[n] = mas
+        return mas
+
+
 def moving_average(x, n, type='simple'): 
     x = np.asarray(x) 
 
