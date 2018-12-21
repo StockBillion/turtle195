@@ -12,8 +12,13 @@ from stockdata import StockDataSet, parse_stock_data
 from account import StockAccount
 from movingave import MovingAverage
 
-fixed_invest = 3000
+long_days = 55
+short_days = 20
 init_invest  = 100000
+regular_invest = 1000
+loss_unit = 0.016
+loss_multiple = 3
+print('turtle factor: ', long_days, short_days, init_invest, regular_invest, loss_unit, loss_multiple)
 
 
 class TurTleIndex:
@@ -154,7 +159,7 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
         _month = num2date(_date).month
         if month != _month:
             month = _month
-            account.Rechange(fixed_invest)
+            account.Rechange(regular_invest)
             # if month == 1 or month == 7:
             #     cash_unit = account.cash * min(0.007 * h55[n] / wvma20[n], 0.5)
             
@@ -163,14 +168,14 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
         # else:
         #     up240 = wvma20[n]*2 < long_price - data_list[n][3]
 
-        stop_loss = data_list[n][3] < long_price - wvma20[n]*3
+        stop_loss = data_list[n][3] < long_price - wvma20[n] * loss_multiple
         if long_count > 0 and (data_list[n][3] < l20[n] or stop_loss):
             volume = account.stocks.at[code, 'volume']
             account.Order(code, _open, -volume, _date)
             long_count = 0
 
         if h55[n] < data_list[n][2] and not long_count:
-            cash_unit = account.cash * .007 * h55[n] / wvma20[n]
+            cash_unit = account.cash * loss_unit * h55[n] / wvma20[n]
             # cash_unit = account.cash * 0.5
             # cash_unit = account.cash * min(0.01 * h55[n] / wvma20[n], 0.5)
             if _open < h55[n]:
@@ -205,7 +210,7 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
         stock_volumes.append(volume)
 
 
-    account.save_records('./data', code)
+    # account.save_records('./data', code)
     account.status_info()
 
     data_table[1] = list(map(lambda x: math.log(x), data_table[1]))
@@ -246,7 +251,8 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
     plt.xlabel("date")
     plt.grid()
     plt.savefig("./images/turtle2055.png")
-    plt.show()
+    # plt.show()
+
 
 if __name__ == "__main__":
     dataset = StockDataSet()
@@ -278,7 +284,7 @@ if __name__ == "__main__":
 
     for code in stock_codes:
         stock_data = dataset.load(code, startdate, enddate, stype, time_unit)
-        turtle_test(account, code, stock_data, stype, 55, 20)
+        turtle_test(account, code, stock_data, stype, long_days, short_days)
 
 
         # print(account.cash, account.market_value, account.cost, account.credit)

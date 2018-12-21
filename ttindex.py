@@ -26,6 +26,18 @@ stock_codes = ['601398.sh', '601988.sh', '601628.sh', '600028.sh', '600036.sh', 
 # df = pro.index_weight(index_code='399300.SZ', start_date='20180901', end_date='20180930')
 # print(df)
 
+## 计算指标
+def calc_ttindex(data_frame, long_cycle, short_cycle):
+    dates, data_list, ave_price, volumes = parse_stock_data(data)
+    data_table = np.transpose( data_list )
+    wavema = MovingAverage(data_table[2] - data_table[3], short_cycle)
+    wvma20 = wavema.ma_indexs[short_cycle]
+
+    turtle = TurTleIndex(data_table[2], data_table[3], long_cycle, short_cycle)
+    h55 = turtle.high_indexs[long_cycle]
+    l20 = turtle.low_indexs[short_cycle]
+
+
 if __name__ == "__main__":
     dataset = StockDataSet()
     startdate = '20180101'
@@ -52,23 +64,27 @@ if __name__ == "__main__":
         stock_datas[code] = dataset.load(code, startdate, enddate, 'stock', 'daily')
 
 ## 计算指标
-    dates, data_list, ave_price, volumes = parse_stock_data(index_data)
-    data_table = np.transpose( data_list )
-    wavema = MovingAverage(data_table[2] - data_table[3], short_cycle)
-    wvma20 = wavema.ma_indexs[short_cycle]
-
-    turtle = TurTleIndex(data_table[2], data_table[3], long_cycle, short_cycle)
-    h55 = turtle.high_indexs[long_cycle]
-    l20 = turtle.low_indexs[short_cycle]
-
+	calc_ttindex(index_data, long_cycle, short_cycle)
     for code in stock_codes:
-        dates, data_list, ave_price, volumes = parse_stock_data(stock_datas[code])
-        data_table = np.transpose( data_list )
-        wavema = MovingAverage(data_table[2] - data_table[3], short_cycle)
-        wvma20 = wavema.ma_indexs[short_cycle]
+		calc_ttindex(stock_datas[code], long_cycle, short_cycle)
 
-        turtle = TurTleIndex(data_table[2], data_table[3], long_cycle, short_cycle)
-        h55 = turtle.high_indexs[long_cycle]
-        l20 = turtle.low_indexs[short_cycle]
+    # dates, data_list, ave_price, volumes = parse_stock_data(index_data)
+    # data_table = np.transpose( data_list )
+    # wavema = MovingAverage(data_table[2] - data_table[3], short_cycle)
+    # wvma20 = wavema.ma_indexs[short_cycle]
+
+    # turtle = TurTleIndex(data_table[2], data_table[3], long_cycle, short_cycle)
+    # h55 = turtle.high_indexs[long_cycle]
+    # l20 = turtle.low_indexs[short_cycle]
+
+    # for code in stock_codes:
+    #     dates, data_list, ave_price, volumes = parse_stock_data(stock_datas[code])
+    #     data_table = np.transpose( data_list )
+    #     wavema = MovingAverage(data_table[2] - data_table[3], short_cycle)
+    #     wvma20 = wavema.ma_indexs[short_cycle]
+
+    #     turtle = TurTleIndex(data_table[2], data_table[3], long_cycle, short_cycle)
+    #     h55 = turtle.high_indexs[long_cycle]
+    #     l20 = turtle.low_indexs[short_cycle]
 
 
