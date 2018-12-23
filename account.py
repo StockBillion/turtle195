@@ -7,26 +7,36 @@ import pandas as pf
 class StockAccount:
     '股票交易账户'
 
-    stocks = pf.DataFrame()
-    records = []
+    # stocks = pf.DataFrame()
+    # records = []
 
-    market_value = 0
-    cash = 0
-    cost = 0
-    credit = 0
+    # market_value = 0
+    # cash = 0
+    # cost = 0
+    # credit = 0
 
-    long_count = 0
-    short_count= 0
-    succeed = 0
+    # long_count = 0
+    # short_count= 0
+    # succeed = 0
 
-    max_value = 0
-    max_back = 0
-    max_lever = 0
+    # max_value = 0
+    # max_back = 0
+    # max_lever = 0
 
 
     def __init__(self, cash):
         self.cash = cash
+        self.credit = 0
+        self.cost = 0
+
         self.max_value = cash
+        self.max_back = 0
+        self.max_lever = 0
+
+        self.long_count = self.short_count = self.succeed = 0
+
+        self.stocks = pf.DataFrame()
+        self.records = []
 
     def status_info(self):
         print( self.long_count, self.short_count, self.succeed, 

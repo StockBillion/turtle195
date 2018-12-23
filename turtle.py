@@ -213,6 +213,7 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
     # account.save_records('./data', code)
     account.status_info()
 
+'''
     data_table[1] = list(map(lambda x: math.log(x), data_table[1]))
     data_table[2] = list(map(lambda x: math.log(x), data_table[2]))
     data_table[3] = list(map(lambda x: math.log(x), data_table[3]))
@@ -251,8 +252,8 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
     plt.xlabel("date")
     plt.grid()
     plt.savefig("./images/turtle2055.png")
-    # plt.show()
-
+    plt.show()
+'''
 
 if __name__ == "__main__":
     dataset = StockDataSet()
@@ -285,6 +286,7 @@ if __name__ == "__main__":
     for code in stock_codes:
         stock_data = dataset.load(code, startdate, enddate, stype, time_unit)
         turtle_test(account, code, stock_data, stype, long_days, short_days)
+
 
 
         # print(account.cash, account.market_value, account.cost, account.credit)

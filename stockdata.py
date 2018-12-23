@@ -17,7 +17,7 @@ def parse_stock_data(stock_data):
     volumes = []
 
     for rnum, row in stock_data.iterrows():
-        tscode, trade_date, open, close, high, low = row[0:6]
+        tscode, trade_date, close, open, high, low = row[0:6]
         vol,amount = row[9:11]
         _date = datetime.datetime.strptime(trade_date, '%Y%m%d')
         timenum = date2num(_date)
@@ -33,8 +33,10 @@ def parse_stock_data(stock_data):
 
 class StockDataSet:
     '股票数据集合'
-    stocks = {}
     
+    def __init__(self):
+        self.stocks = {}
+
     def _join(self, csv_data2, net_data1):
         len1 = len(net_data1)
         len2 = len(csv_data2)
@@ -71,6 +73,7 @@ class StockDataSet:
         return data0
 
     def _read(self, code, time_unit = 'daily'):
+        # return pf.DataFrame()
         try:
             self.stocks[code] = pf.read_csv('./data/' + code + '.' + time_unit + '.csv', 
                 index_col=0, dtype = {'trade_date' : str})
@@ -84,7 +87,7 @@ class StockDataSet:
         start = 0
         
         for rnum, row in daily_datas.iterrows():
-            ts_code, trade_date, open, close, high, low = row[0:6]
+            ts_code, trade_date, close, open, high, low = row[0:6]
             pre_close,change,pct_chg,vol,amount = row[6:11]
             _date = datetime.datetime.strptime(trade_date, '%Y%m%d')
             _weekday = _date.weekday()
@@ -148,7 +151,7 @@ class StockDataSet:
         return hist_data
 
     def load(self, code, startdate, enddate, stype = 'stock', time_unit = 'daily'):
-        print('download', stype, code, time_unit, 'data, from', startdate, 'to', enddate)
+        print('load', stype, code, time_unit, 'data, from', startdate, 'to', enddate)
 
         if startdate is not numpy.int64:
             startdate = numpy.int64(startdate)
