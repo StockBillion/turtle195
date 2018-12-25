@@ -1,12 +1,8 @@
 #!/usr/bin/env python
 #-*- coding: utf8 -*-
-import argparse, numpy as np
+import argparse, numpy as np, pandas as pf, math, datetime
 from matplotlib.pylab import date2num, num2date
-import datetime
-import matplotlib.pyplot as plt
-import mpl_finance as mpf
-import pandas as pf
-import math
+import matplotlib.pyplot as plt, mpl_finance as mpf
 
 from stockdata import StockDataSet, parse_stock_data
 from account import StockAccount
@@ -15,7 +11,7 @@ from movingave import MovingAverage
 long_days = 55
 short_days = 20
 init_invest  = 100000
-regular_invest = 1000
+regular_invest = 0#1000
 loss_unit = 0.016
 loss_multiple = 3
 print('turtle factor: ', long_days, short_days, init_invest, regular_invest, loss_unit, loss_multiple)
@@ -184,7 +180,7 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
                 long_price = _open
 
             volume = cash_unit / long_price
-            volume = int(volume/100) * 100
+            # volume = int(volume/100) * 100
             if volume >= 100: 
                 account.Order(code, long_price, volume, _date)
                 long_count = long_count+1
@@ -195,7 +191,7 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
                 long_price = _open
             
             volume = cash_unit / long_price
-            volume = int(volume/100) * 100
+            # volume = int(volume/100) * 100
             if volume >= 100: 
                 account.Order(code, long_price, volume, _date)
                 long_count = long_count+1
@@ -257,7 +253,7 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
 
 if __name__ == "__main__":
     dataset = StockDataSet()
-    account = StockAccount(init_invest)
+    account = StockAccount(init_invest, 500000)
 
     startdate = '20180101'
     enddate = '20181201'
