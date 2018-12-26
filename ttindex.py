@@ -2,17 +2,8 @@
 #-*- coding: utf8 -*-
 import argparse, numpy as np, pandas as pd, math
 import matplotlib.pyplot as plt, mpl_finance as mpf
-# from enum import Enum
 from stockdata import StockDataSet, parse_stock_data
 from account import StockAccount
-
-
-# index_code = '000300.sh'
-index_codes = ['000001.sh', '000300.sh', '000905.sh', '399673.sz']
-stock_codes = ['601398.sh', '601988.sh', '601628.sh', '600028.sh', '600036.sh', '601318.sh', 
-	'601328.sh', '600000.sh', '601998.sh', '601166.sh', '600030.sh', '600016.sh', 
-	'600519.sh', '600019.sh', '600050.sh', '600104.sh', '601006.sh', '600018.sh', 
-	'000858.sz', '601111.sh', '000002.sz', '600900.sh', '601601.sh', '601991.sh' ]
 
 
 class MovingAverage:
@@ -96,9 +87,10 @@ class TurTleIndex:
         self.wave[short_period] = wavema.moving_average(short_period)
 
         self.trade(long_period, short_period, append_multiple, loss_multiple)
+        self.strong_index(120)
+
         # self.strong_index(5)
         # self.strong_index(20)
-        self.strong_index(120)
 
         self.data['lh_price'] = self.high_prices[10]
         self.data['ll_price'] = self.low_prices[10]
@@ -132,6 +124,9 @@ class TurTleIndex:
         # print( pd.DataFrame(self.data)[55: 85] )
         # self.high = np.asarray(highs)
         # self.low  = np.asarray(lows )
+
+    def print_records(self):
+        print( pd.DataFrame(self.data) )
 
     def strong_index(self, period):
         _strong = []
@@ -201,6 +196,7 @@ class TurTleIndex:
                     keyprice = open[i]
                 else:
                     keyprice = append_price
+                # print(long_count, keyprice, append_price, stop_price)
 
             if long_count > 0 and low[i] < stop_price:
                 long_count = 0
@@ -208,6 +204,7 @@ class TurTleIndex:
                     keyprice = open[i]
                 else:
                     keyprice = stop_price
+                # print(long_count, keyprice, append_price, stop_price)
 
             state.append(long_count)
             key_prices.append(keyprice)
@@ -344,6 +341,13 @@ if __name__ == "__main__":
     startdate = '20170101'
     enddate = '20190101'
 
+    # index_code = '000300.sh'
+    index_codes = ['000001.sh', '000300.sh', '000905.sh', '399673.sz']
+    stock_codes = ['601398.sh', '601988.sh', '601628.sh', '600028.sh', '600036.sh', '601318.sh', 
+        '601328.sh', '600000.sh', '601998.sh', '601166.sh', '600030.sh', '600016.sh', 
+        '600519.sh', '600019.sh', '600050.sh', '600104.sh', '601006.sh', '600018.sh', 
+        '000858.sz', '601111.sh', '000002.sz', '600900.sh', '601601.sh', '601991.sh' ]
+
     long_cycle = 55
     short_cycle= 20
     stock_datas = {}
@@ -394,9 +398,11 @@ if __name__ == "__main__":
     # ax2.plot(dates, turtle.strong[60], color='b', lw=2, label='wave')
     
     plt.grid()
-    # plt.savefig("./images/turtle2055.png")
     plt.show()
+    # plt.savefig("./images/turtle2055.png")
 
+
+# from enum import Enum
 
 ## 准备数据
     # index_data = dataset.load(index_code, startdate, enddate, 'index', 'daily')
