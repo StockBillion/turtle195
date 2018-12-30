@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 #-*- coding: utf8 -*-
-import argparse
-from stock_utils import StockDataSet, parse_stock_data, StockAccount
+import argparse, datetime as dt
+from matplotlib.pylab import date2num, num2date
+from stock_utils import StockDataSet, StockDisp, StockAccount
 from ttindex import TurTleIndex
 
 
@@ -10,31 +11,46 @@ if __name__ == "__main__":
     startdate = '20130101'
     enddate = '20190101'
 
-    loss_unit = 0.01
+    loss_unit = 0.016
     long_cycle = 55
     short_cycle= 20
-    index_codes = ['000001.sh', '000300.sh', '000905.sh', '399673.sz']
+    index_codes = ['000300.sh', '399673.sz']
+    # index_codes = ['000001.sh', '000300.sh', '000905.sh', '399673.sz']
+
+    _date = dt.datetime.strptime('20080101', '%Y%m%d')
+    start_date = date2num(_date)
+    _date = dt.datetime.strptime('20190101', '%Y%m%d')
+    end_date = date2num(_date)
 
     for code in index_codes:
         index_data = dataset.load(code, startdate, enddate, 'index', 'daily')
-        dates, data_list, ave_price, volumes = parse_stock_data(index_data)
+        dates, data_list, ave_price, volumes = dataset.parse_data(code)
+        # dates, data_list, ave_price, volumes = parse_stock_data( index_data )
         turtle = TurTleIndex(data_list, long_cycle, short_cycle, 1, 2)
 
         dates = turtle.data['date']
         closes = turtle.data['close']
         long_counts = turtle.data['state']
         keyprice = turtle.data['key_prices']
-        NS = turtle.wave[short_cycle]
+        NS = turtle.data['short_wave']
 
-        account = StockAccount(100000, 500000)
+        account = StockAccount(100000, 0)
         count = 0
         cash_unit = account.cash
         market_values = []
+        market_values.append(account.market_value)
 
         for i in range(1, len(closes)):
             account.ProfitDaily()
             kp = keyprice[i]*0.01
-            
+            _date = dates[i]
+
+            if _date < start_date or _date > end_date:
+                account.UpdateValue({code: closes[i]*0.01})
+                market_values.append(account.market_value)
+                # stock_volumes.append(0)
+                continue
+
             if count < long_counts[i] and count < 4:
                 count = long_counts[i]
                 if count == 1:
@@ -48,11 +64,56 @@ if __name__ == "__main__":
                 volume = account.stocks.at[code, 'volume']
                 account.Order(code, kp, -volume, dates[i])
 
-            account.UpdateValue({code: closes[i]})
+            account.UpdateValue({code: closes[i]*0.01})
             market_values.append(account.market_value)
 
         account.status_info()
-        print( account.get_records() )
+        account.save_records('./data', 'tt-'+code)
+        turtle.save_data('./data', 'tt-'+code)
+        # print( account.get_records() )
+
+        # plot = StockDisp(code)
+        # plot.LogKDisp(plot.ax1, data_list)
+        # plot.LogPlot(plot.ax1, dates, market_values, 'r', 5)
+        # # plot.LogPlot(plot.ax1, dates, keyprice, 'r')
+        # plot.LogPlot(plot.ax2, dates, NS, 'r')
+        # plot.Plot(plot.ax2, dates, long_counts, 'B')
+        # plot.show()
+
+
+        # market_values = list(map(lambda x: (math.log(x)-9), market_values))
+        # h55 = list(map(lambda x: math.log(x), h55))
+        # l20 = list(map(lambda x: math.log(x), l20))
+
+        # # avma240 = list(map(lambda x: math.log(x), avma240))
+
+
+        # fig,[ax1,ax2] = plt.subplots(2,1,sharex=True)
+        # fig.subplots_adjust(left=0.05, bottom=0.05, right=0.95, top=0.95)
+        # # plt.subplots_adjust(left=0.2, bottom=0.2, right=0.8, top=0.8，hspace=0.2, wspace=0.3)
+
+        # ax1.xaxis_date()
+        # ax1.set_title(code)
+        # ax1.set_ylabel("price")
+
+        # plt.xticks(rotation=45)
+        # plt.yticks()
+
+
+        # ax1.plot(dates, h55, color='y', lw=2, label='high (long_cycle)')
+        # ax1.plot(dates, l20, color='b', lw=2, label='low (short_cycle)')
+        # # ax1.plot(dates, avma240, color='g', lw=2, label='MA (240)')
+        # ax1.plot(dates, market_values, color='r', lw=2, label='MV')
+
+        # # ax2.bar(dates, volumes, width=0.75)
+        # ax2.plot(dates, wvma20, color='r', lw=2, label='wave')
+        # ax2.plot(dates, stock_volumes, color='r', lw=2, label='volumes')
+        # ax2.set_ylabel('Volume')
+
+        # plt.xlabel("date")
+        # plt.grid()
+        # plt.savefig("./images/turtle2055.png")
+        # plt.show()
 
 
                 # print(volume, kp, cash_unit)

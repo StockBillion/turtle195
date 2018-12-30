@@ -164,10 +164,18 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
         # else:
         #     up240 = wvma20[n]*2 < long_price - data_list[n][3]
 
-        stop_loss = data_list[n][3] < long_price - wvma20[n] * loss_multiple
-        if long_count > 0 and (data_list[n][3] < l20[n] or stop_loss):
+        # stop_loss = data_list[n][3] < long_price - wvma20[n] * loss_multiple
+        # if n > 250 and n < 260:
+        #     print(data_list[n][1], data_list[n][3], wvma20[n], long_price, long_price - wvma20[n] * loss_multiple)
+        
+        stop_loss = max(long_price - wvma20[n] * loss_multiple, l20[n])
+        if long_count > 0 and (data_list[n][3] < stop_loss):
             volume = account.stocks.at[code, 'volume']
-            account.Order(code, _open, -volume, _date)
+            if _open < stop_loss:
+                short_price = _open
+            else:
+                short_price = stop_loss
+            account.Order(code, short_price, -volume, _date)
             long_count = 0
 
         if h55[n] < data_list[n][2] and not long_count:
@@ -206,7 +214,8 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
         stock_volumes.append(volume)
 
 
-    # account.save_records('./data', code)
+    account.save_records('./data', code)
+    print( account.get_records() )
     account.status_info()
 
 '''
@@ -253,7 +262,8 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
 
 if __name__ == "__main__":
     dataset = StockDataSet()
-    account = StockAccount(init_invest, 500000)
+    account = StockAccount(init_invest, 0)
+    # account = StockAccount(init_invest, 500000)
 
     startdate = '20180101'
     enddate = '20181201'

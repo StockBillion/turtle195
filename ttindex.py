@@ -2,6 +2,7 @@
 #-*- coding: utf8 -*-
 import argparse, numpy as np, pandas as pd, math
 import matplotlib.pyplot as plt, mpl_finance as mpf
+from matplotlib.pylab import date2num, num2date
 from stockdata import StockDataSet, parse_stock_data
 from account import StockAccount
 
@@ -64,12 +65,18 @@ class TurTleIndex:
         self.strong = {}
         self.wave = {}
 
+        self.date_str = []
+        for i in range(0, len(data_table[0])):
+            datestr = num2date(data_table[0][i]).strftime('%Y%m%d')
+            self.date_str.append(datestr)
+
         self.high_prices = {}
         self.high_locats = {}
         self.low_prices = {}
         self.low_locats = {}
 
         self.data['date'] = data_table[0]
+        self.data['date_str'] = self.date_str
         self.data['open'] = data_table[1]
         self.data['high'] = data_table[2]
         self.data['low' ] = data_table[3]
@@ -80,20 +87,25 @@ class TurTleIndex:
         self._lowest_price (self.data['low' ], long_period)
         self._lowest_price (self.data['low' ], short_period)
 
+        self.data['long_high'] = self.high_prices[long_period]
+        self.data['short_low'] = self.low_prices[short_period]
+
         price_wave = self.data['high'] - self.data['low']
         wavema = MovingAverage(price_wave)
         self.wave[1] = price_wave
         self.wave[long_period ] = wavema.moving_average(long_period)
         self.wave[short_period] = wavema.moving_average(short_period)
+        self.data['long_wave' ] = self.wave[long_period ]
+        self.data['short_wave'] = self.wave[short_period]
+
+        self.strong_index(120)
+        self.data['strong_index'] = self.strong[120]
 
         self.trade(long_period, short_period, append_multiple, loss_multiple)
-        self.strong_index(120)
+
 
         # self.strong_index(5)
         # self.strong_index(20)
-
-        self.data['lh_price'] = self.high_prices[10]
-        self.data['ll_price'] = self.low_prices[10]
 
         # print( pd.DataFrame(self.strong)[220: 250] )
         # print( pd.DataFrame(self.data)[220: 250] )
@@ -128,6 +140,10 @@ class TurTleIndex:
     def print_records(self):
         print( pd.DataFrame(self.data) )
 
+    def save_data(self, path, code):
+        records = pd.DataFrame(self.data)
+        records.to_csv(path + '/' + code + '.ttindex.csv')
+
     def strong_index(self, period):
         _strong = []
 
@@ -161,16 +177,18 @@ class TurTleIndex:
         self.strong[period] = _strong
 
 
-    def trade(self, long_period, short_period, append_multiple, loss_multiple):
+    def trade(self, long_period, short_period, append_multiple, loss_multiple, max_long_count = 4):
         state = []
         key_prices = []
         long_count = 0
         keyprice = 0
+        keyN = 0
 
-        LH = self.high_prices[long_period]
-        SL = self.low_prices[short_period]
-        SN = self.wave[short_period]
+        Hl = self.high_prices[long_period]
+        Ls = self.low_prices[short_period]
+        Ns = self.wave[short_period]
 
+        dates = self.data['date_str']
         open = self.data['open']
         high = self.data['high']
         low  = self.data['low' ]
@@ -180,23 +198,18 @@ class TurTleIndex:
             key_prices.append(0)
 
         for i in range(long_period, len(high)):
-            stop_price = max(SL[i], keyprice - SN[i] * loss_multiple)
+            # keyN = Ns[i]
+            # stop_price = max(SL[i], keyprice - SN[i] * loss_multiple)
             # append_price = max(lh[i], keyprice + N[i] * append_multiple)
             if long_count > 0:
-                append_price = keyprice + SN[i] * append_multiple
+                append_price = keyprice + keyN * append_multiple
+                stop_price = max(Ls[i], keyprice - Ns[i] * loss_multiple + keyN - Ns[i])
             else:
-                append_price = LH[i]
+                append_price = Hl[i]
+                stop_price = Ls[i]
 
             # print(self.data['date'][i], high[i], low[i], sl[i], lh[i], N[i], 
             #     stop_price, append_price, long_count, keyprice)
-
-            if high[i] > append_price:
-                long_count += 1
-                if open[i] > append_price:
-                    keyprice = open[i]
-                else:
-                    keyprice = append_price
-                # print(long_count, keyprice, append_price, stop_price)
 
             if long_count > 0 and low[i] < stop_price:
                 long_count = 0
@@ -204,6 +217,19 @@ class TurTleIndex:
                     keyprice = open[i]
                 else:
                     keyprice = stop_price
+                # print('short', dates[i], open[i], low[i], long_count, stop_price)
+                # print(long_count, keyprice, append_price, stop_price)
+
+            if high[i] > append_price and long_count < max_long_count:
+                keyN = Ns[i]
+                # if not long_count:
+                    # keyN = Ns[i]
+                long_count += 1
+                if open[i] > append_price:
+                    keyprice = open[i]
+                else:
+                    keyprice = append_price
+                # print('long ', dates[i], open[i], high[i], long_count, append_price)
                 # print(long_count, keyprice, append_price, stop_price)
 
             state.append(long_count)
@@ -211,6 +237,8 @@ class TurTleIndex:
 
         self.data['state'] = state
         self.data['key_prices'] = key_prices
+        # print('trade count', len(high), len(key_prices))
+
 
     def _highest_price(self, x, n):
         ps = []
@@ -323,6 +351,7 @@ class TurTleIndex:
         self.low_locats[n] = ls
 
 
+
 def log_list(data_list, base0 = 1):
     _b = math.log(base0)
     for i in range(0, len(data_list)):
@@ -334,7 +363,6 @@ def log_list(data_list, base0 = 1):
         close = math.log(close) - _b
         data_list[i] = (date, open, high, low, close)
     return data_list
-
 
 if __name__ == "__main__":
     dataset = StockDataSet()
