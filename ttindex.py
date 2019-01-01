@@ -3,56 +3,7 @@
 import argparse, numpy as np, pandas as pd, math
 import matplotlib.pyplot as plt, mpl_finance as mpf
 from matplotlib.pylab import date2num, num2date
-from stockdata import StockDataSet, parse_stock_data
-from account import StockAccount
-
-
-class MovingAverage:
-    '股票的移动平均线'
-
-    def __init__(self, _prices):
-        self.ma_indexs = {}
-        self.prices = np.asarray(_prices)
-        # self.moving_average(self.prices, _n)
-
-    def moving_average(self, n):
-        mas = []
-
-        if n in self.ma_indexs:
-            return self.ma_indexs[n]
-
-        elif n == 1:
-            mas.append(self.prices[0])
-            for i in range(1, len(self.prices)):
-                mas.append(self.prices[i-1])
-
-        elif n == 2:
-            mas.append(self.prices[0])
-            mas.append(self.prices[0])
-            for i in range(2, len(self.prices)):
-                mas.append((self.prices[i-1] + self.prices[i-2])/2)
-
-        else: # if n not in self.ma_indexs:
-            m1 = int(n/2)
-            m2 = n - m1
-
-            if m1 not in self.ma_indexs:
-                self.moving_average(m1)
-                # self.ma_indexs[m1] = self.moving_average(m1)
-            hs1 = self.ma_indexs[m1]
-
-            if m2 not in self.ma_indexs:
-                self.moving_average(m2)
-                # self.ma_indexs[m2] = self.moving_average(m2)
-            hs2 = self.ma_indexs[m2]
-
-            for i in range(0, m2):
-                mas.append(hs2[i])
-            for i in range(m2, len(self.prices)):
-                mas.append((hs2[i]*m2 + hs1[i-m2]*m1)/n)
-        
-        self.ma_indexs[n] = mas
-        return self.ma_indexs[n]
+from stock_utils import StockDataSet, MovingAverage
 
 
 class TurTleIndex:
@@ -103,40 +54,6 @@ class TurTleIndex:
 
         self.trade(long_period, short_period, append_multiple, loss_multiple)
 
-
-        # self.strong_index(5)
-        # self.strong_index(20)
-
-        # print( pd.DataFrame(self.strong)[220: 250] )
-        # print( pd.DataFrame(self.data)[220: 250] )
-
-        # self.data['lh_locat'] = self.high_locats[10]
-        # self.data['ll_locat'] = self.low_locats[10]
-
-        # print( pd.DataFrame(self.wave)[55: 85] )
-        # print( pd.DataFrame(self.high_prices)[55: 85] )
-        # print( pd.DataFrame(self.high_prices)[55: 85] )
-
-        # self.data['long_wave'] = self.wave[long_period ]
-        # self.data['short_wave'] = self.wave[short_period]
-
-        # self.data['lh_price'] = self.high_prices[long_period]
-        # self.data['ll_price'] = self.low_prices[long_period]
-        # self.data['sh_price'] = self.high_prices[short_period]
-        # self.data['sl_price'] = self.low_prices[short_period]
-
-        # self.data['lh_locat'] = self.high_locats[long_period]
-        # self.data['ll_locat'] = self.low_locats[long_period]
-        # self.data['sh_locat'] = self.high_locats[short_period]
-        # self.data['sl_locat'] = self.low_locats[short_period]
-
-        # self.data['long_wave'] = wavema.ma_indexs[long_period]
-        # self.data['short_wave'] = wavema.ma_indexs[short_period]
-
-        # print( pd.DataFrame(self.data)[55: 85] )
-        # self.high = np.asarray(highs)
-        # self.low  = np.asarray(lows )
-
     def print_records(self):
         print( pd.DataFrame(self.data) )
 
@@ -156,16 +73,6 @@ class TurTleIndex:
         HP1 = self.high_prices[period]
         LP1 = self.low_prices [period]
 
-        # self._highest_price(high, period*3)
-        # self._lowest_price (low , period*3)
-        # HP3 = self.high_prices[period*3]
-        # LP3 = self.low_prices [period*3]
-
-        # HP = self.high_prices[period]
-        # LP = self.low_prices [period]
-        # HL = self.high_locats[period]
-        # LL = self.low_locats [period]
-
         _strong.append(0)
         for i in range(1, len(close)):
             s = (close[i] - LP1[i])/LP1[i]
@@ -175,69 +82,6 @@ class TurTleIndex:
             _strong.append(s*100)
 
         self.strong[period] = _strong
-
-
-    def trade(self, long_period, short_period, append_multiple, loss_multiple, max_long_count = 4):
-        state = []
-        key_prices = []
-        long_count = 0
-        keyprice = 0
-        keyN = 0
-
-        Hl = self.high_prices[long_period]
-        Ls = self.low_prices[short_period]
-        Ns = self.wave[short_period]
-
-        dates = self.data['date_str']
-        open = self.data['open']
-        high = self.data['high']
-        low  = self.data['low' ]
-
-        for i in range(0, long_period):
-            state.append(long_count)
-            key_prices.append(0)
-
-        for i in range(long_period, len(high)):
-            # keyN = Ns[i]
-            # stop_price = max(SL[i], keyprice - SN[i] * loss_multiple)
-            # append_price = max(lh[i], keyprice + N[i] * append_multiple)
-            if long_count > 0:
-                append_price = keyprice + keyN * append_multiple
-                stop_price = max(Ls[i], keyprice - Ns[i] * loss_multiple + keyN - Ns[i])
-            else:
-                append_price = Hl[i]
-                stop_price = Ls[i]
-
-            # print(self.data['date'][i], high[i], low[i], sl[i], lh[i], N[i], 
-            #     stop_price, append_price, long_count, keyprice)
-
-            if long_count > 0 and low[i] < stop_price:
-                long_count = 0
-                if open[i] < stop_price:
-                    keyprice = open[i]
-                else:
-                    keyprice = stop_price
-                # print('short', dates[i], open[i], low[i], long_count, stop_price)
-                # print(long_count, keyprice, append_price, stop_price)
-
-            if high[i] > append_price and long_count < max_long_count:
-                keyN = Ns[i]
-                # if not long_count:
-                    # keyN = Ns[i]
-                long_count += 1
-                if open[i] > append_price:
-                    keyprice = open[i]
-                else:
-                    keyprice = append_price
-                # print('long ', dates[i], open[i], high[i], long_count, append_price)
-                # print(long_count, keyprice, append_price, stop_price)
-
-            state.append(long_count)
-            key_prices.append(keyprice)
-
-        self.data['state'] = state
-        self.data['key_prices'] = key_prices
-        # print('trade count', len(high), len(key_prices))
 
 
     def _highest_price(self, x, n):
@@ -351,82 +195,212 @@ class TurTleIndex:
         self.low_locats[n] = ls
 
 
+    def trade(self, long_period, short_period, append_multiple, loss_multiple, max_long_count = 4):
+        state = []
+        key_prices = []
+        long_count = 0
+        keyprice = 0
+        keyN = 0
 
-def log_list(data_list, base0 = 1):
-    _b = math.log(base0)
-    for i in range(0, len(data_list)):
-        # data_list[i] = math.log(data_list[i]) - _b
-        date, open, high, low, close = data_list[i]
-        open = math.log(open) - _b
-        high = math.log(high) - _b
-        low = math.log(low) - _b
-        close = math.log(close) - _b
-        data_list[i] = (date, open, high, low, close)
-    return data_list
+        Hl = self.high_prices[long_period]
+        Ls = self.low_prices[short_period]
+        Nl = self.wave[long_period]
+        # Ns = self.wave[short_period]
 
-if __name__ == "__main__":
-    dataset = StockDataSet()
-    startdate = '20170101'
-    enddate = '20190101'
+        dates = self.data['date_str']
+        open = self.data['open']
+        high = self.data['high']
+        low  = self.data['low' ]
 
-    # index_code = '000300.sh'
-    index_codes = ['000001.sh', '000300.sh', '000905.sh', '399673.sz']
-    stock_codes = ['601398.sh', '601988.sh', '601628.sh', '600028.sh', '600036.sh', '601318.sh', 
-        '601328.sh', '600000.sh', '601998.sh', '601166.sh', '600030.sh', '600016.sh', 
-        '600519.sh', '600019.sh', '600050.sh', '600104.sh', '601006.sh', '600018.sh', 
-        '000858.sz', '601111.sh', '000002.sz', '600900.sh', '601601.sh', '601991.sh' ]
+        for i in range(0, long_period):
+            state.append(long_count)
+            key_prices.append(0)
 
-    long_cycle = 55
-    short_cycle= 20
-    stock_datas = {}
+        for i in range(long_period, len(high)):
+            if long_count > 0:
+                append_price = keyprice + keyN * append_multiple
+                stop_price = max(Ls[i], keyprice - keyN * loss_multiple)
+                # stop_price = max(Ls[i], keyprice - Ns[i] * loss_multiple + keyN - Ns[i])
+            else:
+                append_price = Hl[i]
+                stop_price = Ls[i]
 
-    parser = argparse.ArgumentParser(description="show example")
-    parser.add_argument("-s", "--start_date", help="start date")
-    parser.add_argument("-e", "--end_date", help="end date")
+            if long_count > 0 and low[i] < stop_price:
+                long_count = 0
+                if open[i] < stop_price:
+                    keyprice = open[i]
+                else:
+                    keyprice = stop_price
 
-    ARGS = parser.parse_args()
-    if ARGS.start_date:
-        startdate = ARGS.start_date
-    if ARGS.end_date:
-        enddate = ARGS.end_date
+                # state.append(long_count)
+                # key_prices.append(keyprice)
+                # print('short', dates[i], open[i], low[i], long_count, stop_price)
+
+            elif high[i] > append_price and long_count < max_long_count:
+                # keyN = Nl[i]
+                if not long_count:
+                    keyN = Nl[i]
+
+            #     while high[i] > append_price and long_count < max_long_count:
+            #         long_count += 1
+            #         if open[i] > append_price:
+            #             keyprice = open[i]
+            #         else:
+            #             keyprice = append_price
+            #         state.append(long_count)
+            #         key_prices.append(keyprice)
+            #         append_price = keyprice + keyN * append_multiple
+
+            # else:
+            #     state.append(long_count)
+            #     key_prices.append(keyprice)
+
+                long_count += 1
+                if open[i] > append_price:
+                    keyprice = open[i]
+                else:
+                    keyprice = append_price
+                # state.append(long_count)
+                # key_prices.append(keyprice)
+
+                # print('long ', dates[i], open[i], high[i], long_count, append_price)
+
+            state.append(long_count)
+            key_prices.append(keyprice)
+
+        self.data['state'] = state
+        self.data['key_prices'] = key_prices
+        # print('trade count', len(high), len(key_prices))
 
 
-    fig,[ax1,ax2] = plt.subplots(2, 1, sharex=True)
-    fig.subplots_adjust(left=0.05, bottom=0.05, right=0.95, top=0.95)
-    # plt.subplots_adjust(left=0.2, bottom=0.2, right=0.8, top=0.8，hspace=0.2, wspace=0.3)
 
-    ax1.xaxis_date()
-    ax1.set_title('indexs')
-    ax1.set_ylabel("price")
-    ax2.set_ylabel('Volume')
+            # print(self.data['date'][i], high[i], low[i], sl[i], lh[i], N[i], 
+            #     stop_price, append_price, long_count, keyprice)
 
-    plt.xticks(rotation=45)
-    plt.yticks()
-    plt.xlabel("date")
+            # keyN = Ns[i]
+            # stop_price = max(SL[i], keyprice - SN[i] * loss_multiple)
+            # append_price = max(lh[i], keyprice + N[i] * append_multiple)
+
+        # self._highest_price(high, period*3)
+        # self._lowest_price (low , period*3)
+        # HP3 = self.high_prices[period*3]
+        # LP3 = self.low_prices [period*3]
+
+        # HP = self.high_prices[period]
+        # LP = self.low_prices [period]
+        # HL = self.high_locats[period]
+        # LL = self.low_locats [period]
+
+        # self.strong_index(5)
+        # self.strong_index(20)
+
+        # print( pd.DataFrame(self.strong)[220: 250] )
+        # print( pd.DataFrame(self.data)[220: 250] )
+
+        # self.data['lh_locat'] = self.high_locats[10]
+        # self.data['ll_locat'] = self.low_locats[10]
+
+        # print( pd.DataFrame(self.wave)[55: 85] )
+        # print( pd.DataFrame(self.high_prices)[55: 85] )
+        # print( pd.DataFrame(self.high_prices)[55: 85] )
+
+        # self.data['long_wave'] = self.wave[long_period ]
+        # self.data['short_wave'] = self.wave[short_period]
+
+        # self.data['lh_price'] = self.high_prices[long_period]
+        # self.data['ll_price'] = self.low_prices[long_period]
+        # self.data['sh_price'] = self.high_prices[short_period]
+        # self.data['sl_price'] = self.low_prices[short_period]
+
+        # self.data['lh_locat'] = self.high_locats[long_period]
+        # self.data['ll_locat'] = self.low_locats[long_period]
+        # self.data['sh_locat'] = self.high_locats[short_period]
+        # self.data['sl_locat'] = self.low_locats[short_period]
+
+        # self.data['long_wave'] = wavema.ma_indexs[long_period]
+        # self.data['short_wave'] = wavema.ma_indexs[short_period]
+
+        # print( pd.DataFrame(self.data)[55: 85] )
+        # self.high = np.asarray(highs)
+        # self.low  = np.asarray(lows )
 
 
-    for code in index_codes:
-        index_data = dataset.load(code, startdate, enddate, 'index', 'daily')
-        dates, data_list, ave_price, volumes = parse_stock_data(index_data)
-        turtle = TurTleIndex(data_list, long_cycle, short_cycle, 1, 2)
+# def log_list(data_list, base0 = 1):
+#     _b = math.log(base0)
+#     for i in range(0, len(data_list)):
+#         # data_list[i] = math.log(data_list[i]) - _b
+#         date, open, high, low, close = data_list[i]
+#         open = math.log(open) - _b
+#         high = math.log(high) - _b
+#         low = math.log(low) - _b
+#         close = math.log(close) - _b
+#         data_list[i] = (date, open, high, low, close)
+#     return data_list
 
-        data_list = log_list(data_list, turtle.low_prices[120][len(data_list)-1])
-        mpf.candlestick_ohlc(ax1, data_list, width=1.5, colorup='red', colordown='green')
-        ax2.plot(dates, turtle.strong[120], lw=2, label='wave')
 
-    # ax1.plot(dates, h55, color='y', lw=2, label='high (long_cycle)')
-    # ax1.plot(dates, l20, color='b', lw=2, label='low (short_cycle)')
-    # ax1.plot(dates, avma240, color='g', lw=2, label='MA (240)')
-    # ax1.plot(dates, market_values, color='r', lw=2, label='MV')
-    # ax2.bar(dates, volumes, width=0.75)
-    # ax2.plot(dates, stock_volumes, color='r', lw=2, label='volumes')
+# if __name__ == "__main__":
+#     dataset = StockDataSet()
+#     startdate = '20170101'
+#     enddate = '20190101'
 
-    # ax2.plot(dates, turtle.strong[5], color='r', lw=2, label='wave')
-    # ax2.plot(dates, turtle.strong[20], color='g', lw=2, label='wave')
-    # ax2.plot(dates, turtle.strong[60], color='b', lw=2, label='wave')
+#     # index_code = '000300.sh'
+#     index_codes = ['000001.sh', '000300.sh', '000905.sh', '399673.sz']
+#     stock_codes = ['601398.sh', '601988.sh', '601628.sh', '600028.sh', '600036.sh', '601318.sh', 
+#         '601328.sh', '600000.sh', '601998.sh', '601166.sh', '600030.sh', '600016.sh', 
+#         '600519.sh', '600019.sh', '600050.sh', '600104.sh', '601006.sh', '600018.sh', 
+#         '000858.sz', '601111.sh', '000002.sz', '600900.sh', '601601.sh', '601991.sh' ]
+
+#     long_cycle = 55
+#     short_cycle= 20
+#     stock_datas = {}
+
+#     parser = argparse.ArgumentParser(description="show example")
+#     parser.add_argument("-s", "--start_date", help="start date")
+#     parser.add_argument("-e", "--end_date", help="end date")
+
+#     ARGS = parser.parse_args()
+#     if ARGS.start_date:
+#         startdate = ARGS.start_date
+#     if ARGS.end_date:
+#         enddate = ARGS.end_date
+
+
+#     fig,[ax1,ax2] = plt.subplots(2, 1, sharex=True)
+#     fig.subplots_adjust(left=0.05, bottom=0.05, right=0.95, top=0.95)
+#     # plt.subplots_adjust(left=0.2, bottom=0.2, right=0.8, top=0.8，hspace=0.2, wspace=0.3)
+
+#     ax1.xaxis_date()
+#     ax1.set_title('indexs')
+#     ax1.set_ylabel("price")
+#     ax2.set_ylabel('Volume')
+
+#     plt.xticks(rotation=45)
+#     plt.yticks()
+#     plt.xlabel("date")
+
+
+#     for code in index_codes:
+#         index_data = dataset.load(code, startdate, enddate, 'index', 'daily')
+#         dates, data_list, ave_price, volumes = parse_stock_data(index_data)
+#         turtle = TurTleIndex(data_list, long_cycle, short_cycle, 1, 2)
+
+#         data_list = log_list(data_list, turtle.low_prices[120][len(data_list)-1])
+#         mpf.candlestick_ohlc(ax1, data_list, width=1.5, colorup='red', colordown='green')
+#         ax2.plot(dates, turtle.strong[120], lw=2, label='wave')
+
+#     # ax1.plot(dates, h55, color='y', lw=2, label='high (long_cycle)')
+#     # ax1.plot(dates, l20, color='b', lw=2, label='low (short_cycle)')
+#     # ax1.plot(dates, avma240, color='g', lw=2, label='MA (240)')
+#     # ax1.plot(dates, market_values, color='r', lw=2, label='MV')
+#     # ax2.bar(dates, volumes, width=0.75)
+#     # ax2.plot(dates, stock_volumes, color='r', lw=2, label='volumes')
+
+#     # ax2.plot(dates, turtle.strong[5], color='r', lw=2, label='wave')
+#     # ax2.plot(dates, turtle.strong[20], color='g', lw=2, label='wave')
+#     # ax2.plot(dates, turtle.strong[60], color='b', lw=2, label='wave')
     
-    plt.grid()
-    plt.show()
+#     plt.grid()
+#     plt.show()
     # plt.savefig("./images/turtle2055.png")
 
 

@@ -323,6 +323,7 @@ class StockAccount:
 
     def Order(self, code, price, volume, order_time):
         _cost, _commision, volume = self.Format(volume, price)
+        # print(order_time, self.cash, _cost, _commision, volume)
 
         if _cost < 0 and self.credit > 0:
             self.credit += _cost
@@ -340,7 +341,6 @@ class StockAccount:
             
         self.cost += _commision
         order_time = num2date(order_time).strftime('%Y%m%d')
-
 
         if  code in self.stocks.index:
             if( self.stocks.loc[code]['volume'] + volume < 0 ):
@@ -389,22 +389,70 @@ class StockAccount:
         self.records.append(_record)
 
 
-def parse_stock_data(stock_data):
-    data_list = []
-    ave_price = []
-    volumes = []
+class MovingAverage:
+    '股票的移动平均线'
 
-    for rnum, row in stock_data.iterrows():
-        tscode, trade_date, close, open, high, low = row[0:6]
-        vol,amount = row[9:11]
-        _date = dt.datetime.strptime(trade_date, '%Y%m%d')
-        timenum = date2num(_date)
+    def __init__(self, _prices):
+        self.ma_indexs = {}
+        self.prices = np.asarray(_prices)
+        # self.moving_average(self.prices, _n)
 
-        datas = (timenum, open, high, low, close)
-        data_list.append(datas)
-        ave_price.append( (high+low)/2 )
-        volumes.append(vol)
+    def moving_average(self, n):
+        mas = []
 
-    data_table = np.transpose( data_list )
-    dates = data_table[0]
-    return dates, data_list, ave_price, volumes
+        if n in self.ma_indexs:
+            return self.ma_indexs[n]
+
+        elif n == 1:
+            mas.append(self.prices[0])
+            for i in range(1, len(self.prices)):
+                mas.append(self.prices[i-1])
+
+        elif n == 2:
+            mas.append(self.prices[0])
+            mas.append(self.prices[0])
+            for i in range(2, len(self.prices)):
+                mas.append((self.prices[i-1] + self.prices[i-2])/2)
+
+        else: # if n not in self.ma_indexs:
+            m1 = int(n/2)
+            m2 = n - m1
+
+            if m1 not in self.ma_indexs:
+                self.moving_average(m1)
+                # self.ma_indexs[m1] = self.moving_average(m1)
+            hs1 = self.ma_indexs[m1]
+
+            if m2 not in self.ma_indexs:
+                self.moving_average(m2)
+                # self.ma_indexs[m2] = self.moving_average(m2)
+            hs2 = self.ma_indexs[m2]
+
+            for i in range(0, m2):
+                mas.append(hs2[i])
+            for i in range(m2, len(self.prices)):
+                mas.append((hs2[i]*m2 + hs1[i-m2]*m1)/n)
+        
+        self.ma_indexs[n] = mas
+        return self.ma_indexs[n]
+
+
+# def parse_stock_data(stock_data):
+#     data_list = []
+#     ave_price = []
+#     volumes = []
+
+#     for rnum, row in stock_data.iterrows():
+#         tscode, trade_date, close, open, high, low = row[0:6]
+#         vol,amount = row[9:11]
+#         _date = dt.datetime.strptime(trade_date, '%Y%m%d')
+#         timenum = date2num(_date)
+
+#         datas = (timenum, open, high, low, close)
+#         data_list.append(datas)
+#         ave_price.append( (high+low)/2 )
+#         volumes.append(vol)
+
+#     data_table = np.transpose( data_list )
+#     dates = data_table[0]
+#     return dates, data_list, ave_price, volumes
