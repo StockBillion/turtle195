@@ -1,30 +1,55 @@
 #!/usr/bin/env python
 #-*- coding: utf8 -*-
-import numpy as np, pandas as pf
+import numpy as np, pandas as pf, math, datetime as dt 
 from matplotlib.pylab import date2num, num2date
-import tushare as ts
-import datetime as dt
+import matplotlib.pyplot as plt, mpl_finance as mpf, tushare as ts
 
 
-def parse_stock_data(stock_data):
-    data_list = []
-    ave_price = []
-    volumes = []
+class StockDisp:
+    '股票数据可视化'
+    
+    def __init__(self, title, xlabel='date', ylabel='price'):
+        self.fig, [self.ax1, self.ax2] = plt.subplots(2,1,sharex=True)
+        self.fig.subplots_adjust(left=0.05, bottom=0.05, right=0.95, top=0.95)
 
-    for rnum, row in stock_data.iterrows():
-        tscode, trade_date, close, open, high, low = row[0:6]
-        vol,amount = row[9:11]
-        _date = dt.datetime.strptime(trade_date, '%Y%m%d')
-        timenum = date2num(_date)
+        plt.xticks(rotation=45)
+        plt.yticks()
+        plt.xlabel(xlabel)
 
-        datas = (timenum, open, high, low, close)
-        data_list.append(datas)
-        ave_price.append( (high+low)/2 )
-        volumes.append(vol)
+        self.ax1.xaxis_date()
+        self.ax1.set_title(title)
+        self.ax1.set_ylabel(ylabel)
 
-    data_table = np.transpose( data_list )
-    dates = data_table[0]
-    return dates, data_list, ave_price, volumes
+    def show(self):
+        plt.grid()
+        plt.show()
+
+    def save(self, filename):
+        plt.savefig(filename)
+
+
+    def LogKDisp(self, ax1, data_list):
+        data_table = np.transpose( data_list )
+        data_table[1] = list(map(lambda x: math.log(x), data_table[1]))
+        data_table[2] = list(map(lambda x: math.log(x), data_table[2]))
+        data_table[3] = list(map(lambda x: math.log(x), data_table[3]))
+        data_table[4] = list(map(lambda x: math.log(x), data_table[4]))
+
+        data_list = np.transpose( data_table )
+        mpf.candlestick_ohlc(ax1, data_list, width=1.5, colorup='r', colordown='green')
+
+    def LogPlot(self, ax1, dates, vals, _color='r', shift = 0, _label='label'):
+        vals = list(map(lambda x: math.log(x)-shift, vals))
+        ax1.plot(dates, vals, color=_color, lw=2, label=_label)
+
+    def KDisp(self, ax1, data_list):
+        mpf.candlestick_ohlc(ax1, data_list, width=1.5, colorup='red', colordown='green')
+
+
+    def Plot(self, ax1, dates, vals, _color='r', _label='label'):
+        ax1.plot(dates, vals, color=_color, lw=2, label=_label)
+
+
 
 class StockDataSet:
     '股票数据集合'
@@ -35,6 +60,32 @@ class StockDataSet:
 
     def __init__(self):
         self.stocks = {}
+
+
+    def parse_data(self, code):
+        if code not in self.stocks:
+            return []
+        stock_data = self.stocks[code]
+
+        data_list = []
+        ave_price = []
+        volumes = []
+
+        for rnum, row in stock_data.iterrows():
+            tscode, trade_date, close, open, high, low = row[0:6]
+            vol,amount = row[9:11]
+            _date = dt.datetime.strptime(trade_date, '%Y%m%d')
+            timenum = date2num(_date)
+
+            datas = (timenum, open, high, low, close)
+            data_list.append(datas)
+            ave_price.append( (high+low)/2 )
+            volumes.append(vol)
+
+        data_table = np.transpose( data_list )
+        dates = data_table[0]
+        return dates, data_list, ave_price, volumes
+
 
     def _join(self, csv_data2, net_data1):
         len1 = len(net_data1)
@@ -87,8 +138,8 @@ class StockDataSet:
         
         for rnum, row in daily_datas.iterrows():
             ts_code, trade_date, close, open, high, low = row[0:6]
-            vol,amount = row[9:11]
-            # pre_close,change,pct_chg,vol,amount = row[6:11]
+            # vol,amount = row[9:11]./
+            pre_close,change,pct_chg,vol,amount = row[6:11]
             _date = dt.strptime(trade_date, '%Y%m%d')
             _weekday = _date.weekday()
 
@@ -96,7 +147,7 @@ class StockDataSet:
                 if start:
                     _row = {'ts_code': [ts_code], 'trade_date': [_trade_date], 
                         'open': [_open], 'close': [_close], 'high': [_high], 'low': [_low], 
-                        # 'pre_close': [pre_close], 'change': [change], 'pct_chg': [pct_chg], 
+                        'pre_close': [pre_close], 'change': [change], 'pct_chg': [pct_chg], 
                         'vol': [_vol], 'amount': [_amount]}
                     _index = [kidx]
                     weekly_datas = weekly_datas.append(pf.DataFrame(_row, _index))
@@ -181,6 +232,7 @@ class StockDataSet:
             local_data.to_csv('./data/' + code + '.' + time_unit + '.csv')
 
         self.stocks[code] = local_data.sort_index(ascending=False)
+
         return self.stocks[code]
         
 
@@ -192,6 +244,7 @@ class StockAccount:
         self.cash = cash
         self.credit = 0
         self.cost = 0
+        self.market_value = cash
 
         self.max_value = cash
         self.max_back = 0
@@ -208,14 +261,14 @@ class StockAccount:
             self.max_value, self.max_back, self.max_lever)
 
     def get_records(self):
-        records = pf.DataFrame(self.records, columns=['order_time', 'price', 
+        _records = pf.DataFrame(self.records, columns=['order_time', 'price', 
             'volume', 'amount', 'commision', 'total', 'total volume', 'total value',
             'cash', 'credit', 'market value', 'lever', 'back'])
-        return records
+        return _records
 
     def save_records(self, path, code):
-        records = self.get_records()
-        records.to_csv(path + '/' + code + '.records.csv')
+        _records = self.get_records()
+        _records.to_csv(path + '/' + code + '.records.csv')
 
     def Rechange(self, _cash):
         if self.credit > _cash:
@@ -270,6 +323,7 @@ class StockAccount:
 
     def Order(self, code, price, volume, order_time):
         _cost, _commision, volume = self.Format(volume, price)
+        # print(order_time, self.cash, _cost, _commision, volume)
 
         if _cost < 0 and self.credit > 0:
             self.credit += _cost
@@ -287,7 +341,6 @@ class StockAccount:
             
         self.cost += _commision
         order_time = num2date(order_time).strftime('%Y%m%d')
-
 
         if  code in self.stocks.index:
             if( self.stocks.loc[code]['volume'] + volume < 0 ):
@@ -335,3 +388,71 @@ class StockAccount:
             _volume, mkt_value, self.cash, self.credit, self.market_value, lever, back_pump)
         self.records.append(_record)
 
+
+class MovingAverage:
+    '股票的移动平均线'
+
+    def __init__(self, _prices):
+        self.ma_indexs = {}
+        self.prices = np.asarray(_prices)
+        # self.moving_average(self.prices, _n)
+
+    def moving_average(self, n):
+        mas = []
+
+        if n in self.ma_indexs:
+            return self.ma_indexs[n]
+
+        elif n == 1:
+            mas.append(self.prices[0])
+            for i in range(1, len(self.prices)):
+                mas.append(self.prices[i-1])
+
+        elif n == 2:
+            mas.append(self.prices[0])
+            mas.append(self.prices[0])
+            for i in range(2, len(self.prices)):
+                mas.append((self.prices[i-1] + self.prices[i-2])/2)
+
+        else: # if n not in self.ma_indexs:
+            m1 = int(n/2)
+            m2 = n - m1
+
+            if m1 not in self.ma_indexs:
+                self.moving_average(m1)
+                # self.ma_indexs[m1] = self.moving_average(m1)
+            hs1 = self.ma_indexs[m1]
+
+            if m2 not in self.ma_indexs:
+                self.moving_average(m2)
+                # self.ma_indexs[m2] = self.moving_average(m2)
+            hs2 = self.ma_indexs[m2]
+
+            for i in range(0, m2):
+                mas.append(hs2[i])
+            for i in range(m2, len(self.prices)):
+                mas.append((hs2[i]*m2 + hs1[i-m2]*m1)/n)
+        
+        self.ma_indexs[n] = mas
+        return self.ma_indexs[n]
+
+
+# def parse_stock_data(stock_data):
+#     data_list = []
+#     ave_price = []
+#     volumes = []
+
+#     for rnum, row in stock_data.iterrows():
+#         tscode, trade_date, close, open, high, low = row[0:6]
+#         vol,amount = row[9:11]
+#         _date = dt.datetime.strptime(trade_date, '%Y%m%d')
+#         timenum = date2num(_date)
+
+#         datas = (timenum, open, high, low, close)
+#         data_list.append(datas)
+#         ave_price.append( (high+low)/2 )
+#         volumes.append(vol)
+
+#     data_table = np.transpose( data_list )
+#     dates = data_table[0]
+#     return dates, data_list, ave_price, volumes

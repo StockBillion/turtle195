@@ -4,16 +4,19 @@ import argparse, numpy as np, pandas as pf, math, datetime
 from matplotlib.pylab import date2num, num2date
 import matplotlib.pyplot as plt, mpl_finance as mpf
 
-from stockdata import StockDataSet, parse_stock_data
-from account import StockAccount
-from movingave import MovingAverage
+
+from stock_utils import StockDataSet, StockDisp, StockAccount, MovingAverage
+
+# from stockdata import StockDataSet, parse_stock_data
+# from account import StockAccount
+# from movingave import MovingAverage
 
 long_days = 55
 short_days = 20
 init_invest  = 100000
 regular_invest = 0#1000
-loss_unit = 0.016
-loss_multiple = 3
+loss_unit = 0.01
+loss_multiple = 4
 print('turtle factor: ', long_days, short_days, init_invest, regular_invest, loss_unit, loss_multiple)
 
 
@@ -108,13 +111,15 @@ def list_multi(x):
     return x
 
 
-def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, short_cycle = 10):
+def turtle_test(account, code, dataset, stype = 'stock', long_cycle = 20, short_cycle = 10):
     _date = datetime.datetime.strptime('20080101', '%Y%m%d')
     start_date = date2num(_date)
     _date = datetime.datetime.strptime('20190101', '%Y%m%d')
     end_date = date2num(_date)
 
-    dates, data_list, ave_price, volumes = parse_stock_data(stock_data)
+    stock_data = dataset.load(code, startdate, enddate, stype, time_unit)
+    dates, data_list, ave_price, volumes = dataset.parse_data(code)
+    # dates, data_list, ave_price, volumes = parse_stock_data(stock_data)
     data_table = np.transpose( data_list )
 
     if stype == 'index':
@@ -128,8 +133,14 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
 
     # avema = MovingAverage(ave_price, 240)
     # avma240 = avema.ma_indexs[240]
-    wavema = MovingAverage(data_table[2] - data_table[3], 20)
-    wvma20 = wavema.ma_indexs[20]
+    # wavema = MovingAverage(data_table[2] - data_table[3], 20)
+    # wvma20 = wavema.ma_indexs[20]
+
+    price_wave = data_table[2] - data_table[3]
+    wavema = MovingAverage(price_wave)
+    wvma55 = wavema.moving_average(55)
+    # wavema = MovingAverage(data_table[2] - data_table[3], 55)
+    # wvma55 = wavema.ma_indexs[55]
 
     turtle = TurTleIndex(data_table[2], data_table[3], long_cycle, short_cycle)
     h55 = turtle.high_indexs[long_cycle]
@@ -139,6 +150,7 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
     long_count = 0
     cash_unit = account.cash * 0.5
     month = -1
+    keyN = 0
     market_values = []
     stock_volumes = []
 
@@ -164,14 +176,23 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
         # else:
         #     up240 = wvma20[n]*2 < long_price - data_list[n][3]
 
-        stop_loss = data_list[n][3] < long_price - wvma20[n] * loss_multiple
-        if long_count > 0 and (data_list[n][3] < l20[n] or stop_loss):
+        # stop_loss = data_list[n][3] < long_price - wvma20[n] * loss_multiple
+        # if n > 250 and n < 260:
+        #     print(data_list[n][1], data_list[n][3], wvma20[n], long_price, long_price - wvma20[n] * loss_multiple)
+        
+        stop_loss = max(long_price - loss_multiple * keyN, l20[n])
+        if long_count > 0 and (data_list[n][3] < stop_loss):
             volume = account.stocks.at[code, 'volume']
-            account.Order(code, _open, -volume, _date)
+            if _open < stop_loss:
+                short_price = _open
+            else:
+                short_price = stop_loss
+            account.Order(code, short_price, -volume, _date)
             long_count = 0
 
         if h55[n] < data_list[n][2] and not long_count:
-            cash_unit = account.cash * loss_unit * h55[n] / wvma20[n]
+            keyN = wvma55[n]
+            cash_unit = account.cash * loss_unit * h55[n] / keyN # wvma20[n]
             # cash_unit = account.cash * 0.5
             # cash_unit = account.cash * min(0.01 * h55[n] / wvma20[n], 0.5)
             if _open < h55[n]:
@@ -184,7 +205,7 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
             if volume >= 100: 
                 account.Order(code, long_price, volume, _date)
                 long_count = long_count+1
-            long_price = long_price + wvma20[n]
+            long_price = long_price + keyN #wvma20[n]
 
         if long_count > 0 and data_list[n][2] > long_price and long_count < 4:
             if _open > long_price:
@@ -195,7 +216,7 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
             if volume >= 100: 
                 account.Order(code, long_price, volume, _date)
                 long_count = long_count+1
-            long_price = long_price + wvma20[n]
+            long_price = long_price + keyN #wvma20[n]
 
         account.UpdateValue({code: _close})
         market_values.append(account.market_value)
@@ -206,7 +227,8 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
         stock_volumes.append(volume)
 
 
-    # account.save_records('./data', code)
+    account.save_records('./data', code)
+    print( account.get_records() )
     account.status_info()
 
 '''
@@ -253,7 +275,8 @@ def turtle_test(account, code, stock_data, stype = 'stock', long_cycle = 20, sho
 
 if __name__ == "__main__":
     dataset = StockDataSet()
-    account = StockAccount(init_invest, 500000)
+    account = StockAccount(init_invest, 0)
+    # account = StockAccount(init_invest, 500000)
 
     startdate = '20180101'
     enddate = '20181201'
@@ -280,8 +303,8 @@ if __name__ == "__main__":
         time_unit = ARGS.time_unit
 
     for code in stock_codes:
-        stock_data = dataset.load(code, startdate, enddate, stype, time_unit)
-        turtle_test(account, code, stock_data, stype, long_days, short_days)
+        # stock_data = dataset.load(code, startdate, enddate, stype, time_unit)
+        turtle_test(account, code, dataset, stype, long_days, short_days)
 
 
 
