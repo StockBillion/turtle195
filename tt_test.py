@@ -13,7 +13,8 @@ if __name__ == "__main__":
     loss_unit = 0.01
     long_cycle = 55
     short_cycle= 20
-    index_codes = ['000001.sh', '000300.sh', '000905.sh', '399673.sz']
+    index_codes = ['000300.sh']
+    # index_codes = ['000001.sh', '000300.sh', '000905.sh', '399673.sz']
 
     for code in index_codes:
         index_data = dataset.load(code, startdate, enddate, 'index', 'daily')
@@ -48,10 +49,11 @@ if __name__ == "__main__":
                 volume = account.stocks.at[code, 'volume']
                 account.Order(code, kp, -volume, dates[i])
 
-            account.UpdateValue({code: closes[i]})
+            account.UpdateValue({code: closes[i]*0.01})
             market_values.append(account.market_value)
 
         account.status_info()
+        account.save_records('./data', code)
         print( account.get_records() )
 
 
