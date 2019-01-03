@@ -261,7 +261,7 @@ class StockAccount:
             self.max_value, self.max_back, self.max_lever)
 
     def get_records(self):
-        _records = pf.DataFrame(self.records, columns=['order_time', 'price', 
+        _records = pf.DataFrame(self.records, columns=['order_time', 'code', 'price', 
             'volume', 'amount', 'commision', 'total', 'total volume', 'total value',
             'cash', 'credit', 'market value', 'lever', 'back'])
         return _records
@@ -317,13 +317,12 @@ class StockAccount:
         if volume < 0: # 印花税,单边收
             _commision += absv * 0.001
         _commision += absv * 0.00002 # 过户费
-        # _commision = self.Commision(_value)
         _cost = _value + _commision
         return _cost, _commision, volume
 
     def Order(self, code, price, volume, order_time):
         _cost, _commision, volume = self.Format(volume, price)
-        # print(order_time, self.cash, _cost, _commision, volume)
+        # print(order_time, code, price, volume, _cost, _commision, self.cash)
 
         if _cost < 0 and self.credit > 0:
             self.credit += _cost
@@ -377,17 +376,16 @@ class StockAccount:
 
         self.market_value = self.cash - self.credit + mkt_value
         lever = self.credit/self.market_value
-        # if self.max_value 
         back_pump = 1 - self.market_value/self.max_value
 
         self.max_value = max(self.max_value, self.market_value)
         self.max_back  = max(self.max_back , back_pump)
         self.max_lever = max(self.max_lever, lever)
 
-        _record = (order_time, price, volume, volume*price, _commision, _cost, 
+        _record = (order_time, code, price, volume, volume*price, _commision, _cost, 
             _volume, mkt_value, self.cash, self.credit, self.market_value, lever, back_pump)
         self.records.append(_record)
-
+        # print(self.stocks)
 
 class MovingAverage:
     '股票的移动平均线'

@@ -13,18 +13,17 @@ class TurTleIndex:
         data_table = np.transpose( data_list )
 
         self.data = {}
-        self.strong = {}
         self.wave = {}
-
-        self.date_str = []
-        for i in range(0, len(data_table[0])):
-            datestr = num2date(data_table[0][i]).strftime('%Y%m%d')
-            self.date_str.append(datestr)
 
         self.high_prices = {}
         self.high_locats = {}
         self.low_prices = {}
         self.low_locats = {}
+
+        self.date_str = []
+        for i in range(0, len(data_table[0])):
+            datestr = num2date(data_table[0][i]).strftime('%Y%m%d')
+            self.date_str.append(datestr)
 
         self.data['date'] = data_table[0]
         self.data['date_str'] = self.date_str
@@ -49,8 +48,9 @@ class TurTleIndex:
         self.data['long_wave' ] = self.wave[long_period ]
         self.data['short_wave'] = self.wave[short_period]
 
-        self.strong_index(120)
-        self.data['strong_index'] = self.strong[120]
+        # self.strong = {}
+        # self.strong_index(120)
+        # self.data['strong_index'] = self.strong[120]
 
         self.trade(long_period, short_period, append_multiple, loss_multiple)
 
@@ -60,28 +60,6 @@ class TurTleIndex:
     def save_data(self, path, code):
         records = pd.DataFrame(self.data)
         records.to_csv(path + '/' + code + '.ttindex.csv')
-
-    def strong_index(self, period):
-        _strong = []
-
-        close = self.data['close']
-        high = self.data['high']
-        low  = self.data['low' ]
-
-        self._highest_price(high, period)
-        self._lowest_price (low , period)
-        HP1 = self.high_prices[period]
-        LP1 = self.low_prices [period]
-
-        _strong.append(0)
-        for i in range(1, len(close)):
-            s = (close[i] - LP1[i])/LP1[i]
-            # s = (HP1[i] - LP3[i])/LP3[i] + (LP1[i] - HP3[i])/HP3[i]
-            # s = (high[i] - LP[i])/LP[i] + (low[i] - HP[i])/HP[i]
-            # s = (close[i] - LP[i]) / (i - LL[i]) + (close[i] - HP[i]) / (i - HL[i])
-            _strong.append(s*100)
-
-        self.strong[period] = _strong
 
 
     def _highest_price(self, x, n):
@@ -194,6 +172,27 @@ class TurTleIndex:
         self.low_prices[n] = ps
         self.low_locats[n] = ls
 
+    def strong_index(self, period):
+        _strong = []
+        close = self.data['close']
+
+        # high = self.data['high']
+        # self._highest_price(high, period)
+        # HP1 = self.high_prices[period]
+
+        low  = self.data['low' ]
+        self._lowest_price (low , period)
+        LP1 = self.low_prices [period]
+
+        _strong.append(0)
+        for i in range(1, len(close)):
+            s = (close[i] - LP1[i])/LP1[i]
+            # s = (HP1[i] - LP3[i])/LP3[i] + (LP1[i] - HP3[i])/HP3[i]
+            # s = (high[i] - LP[i])/LP[i] + (low[i] - HP[i])/HP[i]
+            # s = (close[i] - LP[i]) / (i - LL[i]) + (close[i] - HP[i]) / (i - HL[i])
+            _strong.append(s*100)
+        return _strong
+
 
     def trade(self, long_period, short_period, append_multiple, loss_multiple, max_long_count = 4):
         state = []
@@ -205,9 +204,7 @@ class TurTleIndex:
         Hl = self.high_prices[long_period]
         Ls = self.low_prices[short_period]
         Nl = self.wave[long_period]
-        # Ns = self.wave[short_period]
-
-        dates = self.data['date_str']
+        
         open = self.data['open']
         high = self.data['high']
         low  = self.data['low' ]
@@ -231,15 +228,32 @@ class TurTleIndex:
                     keyprice = open[i]
                 else:
                     keyprice = stop_price
-
-                # state.append(long_count)
-                # key_prices.append(keyprice)
                 # print('short', dates[i], open[i], low[i], long_count, stop_price)
 
             elif high[i] > append_price and long_count < max_long_count:
                 # keyN = Nl[i]
                 if not long_count:
                     keyN = Nl[i]
+
+                long_count += 1
+                if open[i] > append_price:
+                    keyprice = open[i]
+                else:
+                    keyprice = append_price
+                # print('long ', dates[i], open[i], high[i], long_count, append_price)
+
+            state.append(long_count)
+            key_prices.append(keyprice)
+
+        self.data['state'] = state
+        self.data['key_prices'] = key_prices
+        # print('trade count', len(high), len(key_prices))
+
+
+
+            # if long_count > 0 and high[i] < stop_price:
+            #     long_count = 0
+            #     keyprice = close[i]
 
             #     while high[i] > append_price and long_count < max_long_count:
             #         long_count += 1
@@ -254,24 +268,6 @@ class TurTleIndex:
             # else:
             #     state.append(long_count)
             #     key_prices.append(keyprice)
-
-                long_count += 1
-                if open[i] > append_price:
-                    keyprice = open[i]
-                else:
-                    keyprice = append_price
-                # state.append(long_count)
-                # key_prices.append(keyprice)
-
-                # print('long ', dates[i], open[i], high[i], long_count, append_price)
-
-            state.append(long_count)
-            key_prices.append(keyprice)
-
-        self.data['state'] = state
-        self.data['key_prices'] = key_prices
-        # print('trade count', len(high), len(key_prices))
-
 
 
             # print(self.data['date'][i], high[i], low[i], sl[i], lh[i], N[i], 
@@ -342,13 +338,6 @@ class TurTleIndex:
 #     dataset = StockDataSet()
 #     startdate = '20170101'
 #     enddate = '20190101'
-
-#     # index_code = '000300.sh'
-#     index_codes = ['000001.sh', '000300.sh', '000905.sh', '399673.sz']
-#     stock_codes = ['601398.sh', '601988.sh', '601628.sh', '600028.sh', '600036.sh', '601318.sh', 
-#         '601328.sh', '600000.sh', '601998.sh', '601166.sh', '600030.sh', '600016.sh', 
-#         '600519.sh', '600019.sh', '600050.sh', '600104.sh', '601006.sh', '600018.sh', 
-#         '000858.sz', '601111.sh', '000002.sz', '600900.sh', '601601.sh', '601991.sh' ]
 
 #     long_cycle = 55
 #     short_cycle= 20

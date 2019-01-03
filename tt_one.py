@@ -37,9 +37,9 @@ if __name__ == "__main__":
 
     if ARGS.loss_unit:
         loss_unit = float(ARGS.loss_unit)
-    if ARGS.loss_unit:
+    if ARGS.append:
         append = float(ARGS.append)
-    if ARGS.loss_unit:
+    if ARGS.stop_loss:
         stop_loss = float(ARGS.stop_loss)
 
     if ARGS.stock_codes:
@@ -98,21 +98,13 @@ if __name__ == "__main__":
             market_values.append(account.market_value)
 
         account.status_info()
-        print( account.get_records() )
-        
         # account.save_records('./data', 'tt-'+code)
         # turtle.save_data('./data', 'tt-'+code)
+        # print( account.get_records() )
 
         # plot = StockDisp(code)
         # plot.LogKDisp(plot.ax1, data_list)
-        # plot.LogPlot(plot.ax1, dates, market_values, 'r', 5)
-        # # plot.LogPlot(plot.ax1, dates, keyprice, 'r')
-        # plot.LogPlot(plot.ax2, dates, NS, 'r')
+        # plot.LogPlot(plot.ax1, dates, market_values, 'r', 4)
+        # plot.LogPlot(plot.ax2, dates, Nl, 'r')
         # plot.Plot(plot.ax2, dates, long_counts, 'B')
         # plot.show()
-
-    # if ARGS.data_type:
-    #     stype = str(ARGS.data_type)
-    # if ARGS.time_unit:
-    #     time_unit = ARGS.time_unit
-
