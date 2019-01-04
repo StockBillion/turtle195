@@ -233,15 +233,17 @@ class StockDataSet:
         print('download', len(hist_data), 'row data')
         return hist_data
 
+    def read(self, code, time_unit = 'daily'):
+        print('read', code, time_unit, 'data')
+        local_data = self._read(code, time_unit)
+        self.stocks[code] = local_data.sort_index(ascending=False)
+        return self.stocks[code]
+
     def load(self, code, startdate, enddate, stype = 'stock', time_unit = 'daily'):
         print('load', stype, code, time_unit, 'data, from', startdate, 'to', enddate)
 
         startdate = StockDataSet.float_date(startdate)
         enddate = StockDataSet.float_date(enddate)
-        # if startdate is not np.int64:
-        #     startdate = np.int64(startdate)
-        # if enddate is not np.int64:
-        #     enddate = np.int64(enddate)
 
         local_data = self._read(code, time_unit)
         _rowcount = len(local_data)
@@ -250,11 +252,6 @@ class StockDataSet:
             _head = StockDataSet.float_date(local_data.at[0, 'trade_date'])
             _tear = StockDataSet.float_date(local_data.at[_rowcount-1, 'trade_date'])
             
-            # _head = np.int64(local_data.at[0, 'trade_date'])
-            # _tear = np.int64(local_data.at[_rowcount-1, 'trade_date'])
-            # print(_head, _tear, enddate, startdate)
-            # print(enddate - _head, _tear - startdate)
-
             if enddate - _head > 10: #_head+1 < enddate:
                 down_data = self._download(code, _head + 1, enddate, stype, time_unit)
                 local_data = self._join(local_data, down_data)
@@ -270,7 +267,6 @@ class StockDataSet:
             local_data.to_csv('./data/' + code + '.' + time_unit + '.csv')
 
         self.stocks[code] = local_data.sort_index(ascending=False)
-
         return self.stocks[code]
         
 
@@ -492,3 +488,13 @@ class MovingAverage:
 #     data_table = np.transpose( data_list )
 #     dates = data_table[0]
 #     return dates, data_list, ave_price, volumes
+
+        # if startdate is not np.int64:
+        #     startdate = np.int64(startdate)
+        # if enddate is not np.int64:
+        #     enddate = np.int64(enddate)
+
+            # _head = np.int64(local_data.at[0, 'trade_date'])
+            # _tear = np.int64(local_data.at[_rowcount-1, 'trade_date'])
+            # print(_head, _tear, enddate, startdate)
+            # print(enddate - _head, _tear - startdate)

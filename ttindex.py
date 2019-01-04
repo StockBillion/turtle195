@@ -9,7 +9,7 @@ from stock_utils import StockDataSet, MovingAverage
 class TurTleIndex:
     '海龟指标'
 
-    def __init__(self, data_list, long_period, short_period, append_multiple, loss_multiple):
+    def __init__(self, data_list):
         data_table = np.transpose( data_list )
 
         self.data = {}
@@ -32,27 +32,31 @@ class TurTleIndex:
         self.data['low' ] = data_table[3]
         self.data['close'] = data_table[4]
 
-        self._highest_price(self.data['high'], long_period)
-        self._highest_price(self.data['high'], short_period)
-        self._lowest_price (self.data['low' ], long_period)
-        self._lowest_price (self.data['low' ], short_period)
+    # def __init__(self, data_list, long_period, short_period, append_multiple, loss_multiple):
+    #     data_table = np.transpose( data_list )
 
-        self.data['long_high'] = self.high_prices[long_period]
-        self.data['short_low'] = self.low_prices[short_period]
+    #     self.data = {}
+    #     self.wave = {}
 
-        price_wave = self.data['high'] - self.data['low']
-        wavema = MovingAverage(price_wave)
-        self.wave[1] = price_wave
-        self.wave[long_period ] = wavema.moving_average(long_period)
-        self.wave[short_period] = wavema.moving_average(short_period)
-        self.data['long_wave' ] = self.wave[long_period ]
-        self.data['short_wave'] = self.wave[short_period]
+    #     self.high_prices = {}
+    #     self.high_locats = {}
+    #     self.low_prices = {}
+    #     self.low_locats = {}
 
-        # self.strong = {}
-        # self.strong_index(120)
-        # self.data['strong_index'] = self.strong[120]
+    #     self.date_str = []
+    #     for i in range(0, len(data_table[0])):
+    #         datestr = num2date(data_table[0][i]).strftime('%Y%m%d')
+    #         self.date_str.append(datestr)
 
-        self.trade(long_period, short_period, append_multiple, loss_multiple)
+    #     self.data['date'] = data_table[0]
+    #     self.data['date_str'] = self.date_str
+    #     self.data['open'] = data_table[1]
+    #     self.data['high'] = data_table[2]
+    #     self.data['low' ] = data_table[3]
+    #     self.data['close'] = data_table[4]
+
+    #     self.price_wave(long_period, short_period)
+    #     self.long_trade(long_period, short_period, append_multiple, loss_multiple)
 
     def print_records(self):
         print( pd.DataFrame(self.data) )
@@ -60,6 +64,15 @@ class TurTleIndex:
     def save_data(self, path, code):
         records = pd.DataFrame(self.data)
         records.to_csv(path + '/' + code + '.ttindex.csv')
+
+    def price_wave(self, long_period, short_period):
+        price_wave = self.data['high'] - self.data['low']
+        wavema = MovingAverage(price_wave)
+        self.wave[1] = price_wave
+        self.wave[long_period ] = wavema.moving_average(long_period)
+        self.wave[short_period] = wavema.moving_average(short_period)
+        self.data['long_wave' ] = self.wave[long_period ]
+        self.data['short_wave'] = self.wave[short_period]
 
 
     def _highest_price(self, x, n):
@@ -172,13 +185,23 @@ class TurTleIndex:
         self.low_prices[n] = ps
         self.low_locats[n] = ls
 
-    def strong_index(self, period):
-        _strong = []
+    def stort_index(self, period):
+        _vulnerable = []
         close = self.data['close']
 
-        # high = self.data['high']
-        # self._highest_price(high, period)
-        # HP1 = self.high_prices[period]
+        high = self.data['high']
+        self._highest_price(high, period)
+        HP1 = self.high_prices[period]
+
+        _vulnerable.append(0)
+        for i in range(1, len(close)):
+            v = (close[i] - HP1[i])/HP1[i]
+            _vulnerable.append(v*100)
+        return _vulnerable
+
+    def long_index(self, period):
+        _strong = []
+        close = self.data['close']
 
         low  = self.data['low' ]
         self._lowest_price (low , period)
@@ -187,19 +210,21 @@ class TurTleIndex:
         _strong.append(0)
         for i in range(1, len(close)):
             s = (close[i] - LP1[i])/LP1[i]
-            # s = (HP1[i] - LP3[i])/LP3[i] + (LP1[i] - HP3[i])/HP3[i]
-            # s = (high[i] - LP[i])/LP[i] + (low[i] - HP[i])/HP[i]
-            # s = (close[i] - LP[i]) / (i - LL[i]) + (close[i] - HP[i]) / (i - HL[i])
             _strong.append(s*100)
         return _strong
 
-
-    def trade(self, long_period, short_period, append_multiple, loss_multiple, max_long_count = 4):
+    def long_trade(self, long_period, short_period, append_multiple, loss_multiple, max_long_count = 4):
         state = []
         key_prices = []
         long_count = 0
         keyprice = 0
         keyN = 0
+
+        self._highest_price(self.data['high'], long_period)
+        self._lowest_price (self.data['low' ], short_period)
+
+        self.data['long_high'] = self.high_prices[long_period]
+        self.data['short_low'] = self.low_prices[short_period]
 
         Hl = self.high_prices[long_period]
         Ls = self.low_prices[short_period]
@@ -249,7 +274,75 @@ class TurTleIndex:
         self.data['key_prices'] = key_prices
         # print('trade count', len(high), len(key_prices))
 
+    def short_trade(self, long_period, short_period, append_multiple, loss_multiple, max_long_count = 4):
+        state = []
+        key_prices = []
+        long_count = 0
+        keyprice = 0
+        keyN = 0
 
+        self._highest_price(self.data['high'], short_period)
+        self._lowest_price (self.data['low' ], long_period)
+
+        self.data['long_short'] = self.low_prices[long_period]
+        self.data['short_high'] = self.high_prices[short_period]
+
+        Ll = self.low_prices[long_period]
+        Hs = self.high_prices[short_period]
+        Nl = self.wave[long_period]
+        
+        open = self.data['open']
+        high = self.data['high']
+        low  = self.data['low' ]
+
+        for i in range(0, long_period):
+            state.append(long_count)
+            key_prices.append(0)
+
+        for i in range(long_period, len(high)):
+            if long_count > 0:
+                append_price = keyprice - keyN * append_multiple
+                stop_price = max(Hs[i], keyprice + keyN * loss_multiple)
+                # stop_price = max(Ls[i], keyprice - Ns[i] * loss_multiple + keyN - Ns[i])
+            else:
+                append_price = Ll[i]
+                stop_price = Hs[i]
+
+            if long_count > 0 and high[i] > stop_price:
+                long_count = 0
+                if open[i] > stop_price:
+                    keyprice = open[i]
+                else:
+                    keyprice = stop_price
+                # print('short', dates[i], open[i], low[i], long_count, stop_price)
+
+            elif low[i] < append_price and long_count < max_long_count:
+                # keyN = Nl[i]
+                if not long_count:
+                    keyN = Nl[i]
+                long_count += 1
+                if open[i] < append_price:
+                    keyprice = open[i]
+                else:
+                    keyprice = append_price
+                # print('long ', dates[i], open[i], high[i], long_count, append_price)
+
+            state.append(long_count)
+            key_prices.append(keyprice)
+
+        self.data['state'] = state
+        self.data['key_prices'] = key_prices
+        # print('trade count', len(high), len(key_prices))
+
+
+
+        # self.strong = {}
+        # self.strong_index(120)
+        # self.data['strong_index'] = self.strong[120]
+
+            # s = (HP1[i] - LP3[i])/LP3[i] + (LP1[i] - HP3[i])/HP3[i]
+            # s = (high[i] - LP[i])/LP[i] + (low[i] - HP[i])/HP[i]
+            # s = (close[i] - LP[i]) / (i - LL[i]) + (close[i] - HP[i]) / (i - HL[i])
 
             # if long_count > 0 and high[i] < stop_price:
             #     long_count = 0
