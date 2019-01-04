@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #-*- coding: utf8 -*-
-import numpy as np, pandas as pf, math, datetime as dt 
+import numpy as np, pandas as pf, math, datetime as dt, time 
 from matplotlib.pylab import date2num, num2date
 import matplotlib.pyplot as plt, mpl_finance as mpf, tushare as ts
 
@@ -171,11 +171,42 @@ class StockDataSet:
 
         return weekly_datas
 
+    @staticmethod
+    def float_date(_date):
+        if isinstance(_date, np.int64):
+            _date = str(_date)
+        if isinstance(_date, str):
+            _date = dt.datetime.strptime(_date, '%Y%m%d')
+        if isinstance(_date, dt.datetime):
+            _date = date2num(_date)
+        return _date
+
+    @staticmethod
+    def str_date(_date):
+        if isinstance(_date, float):
+            _date = num2date(_date).strftime('%Y%m%d')
+        elif isinstance(_date, np.int64):
+            _date = str(_date)
+        elif isinstance(_date, dt.datetime):
+            _date = _date.strftime('%Y%m%d')
+        return _date
+
+    @staticmethod
+    def datetime(_date):
+        if isinstance(_date, float):
+            _date = num2date(_date)
+        elif isinstance(_date, np.int64):
+            _date = str(_date)
+        if isinstance(_date, str):
+            _date = dt.datetime.strptime(_date, '%Y%m%d')
+        return _date
+
 
     def _download(self, code, startdate, enddate, stype, time_unit = 'daily'):
-        print('download ', stype, ' ', code, ' data, from ', startdate, ' to ', enddate)
-        startdate = str(startdate)
-        enddate = str(enddate)
+        print('download', stype, code, 'data, from', startdate, 'to', enddate)
+        time.sleep(0.01)
+        startdate = StockDataSet.str_date(startdate)
+        enddate = StockDataSet.str_date(enddate)
 
         if stype == 'index':
             hist_data = StockDataSet.pro.index_daily(ts_code=code, start_date=startdate, end_date=enddate)
@@ -205,22 +236,29 @@ class StockDataSet:
     def load(self, code, startdate, enddate, stype = 'stock', time_unit = 'daily'):
         print('load', stype, code, time_unit, 'data, from', startdate, 'to', enddate)
 
-        if startdate is not np.int64:
-            startdate = np.int64(startdate)
-        if enddate is not np.int64:
-            enddate = np.int64(enddate)
+        startdate = StockDataSet.float_date(startdate)
+        enddate = StockDataSet.float_date(enddate)
+        # if startdate is not np.int64:
+        #     startdate = np.int64(startdate)
+        # if enddate is not np.int64:
+        #     enddate = np.int64(enddate)
 
         local_data = self._read(code, time_unit)
         _rowcount = len(local_data)
         
-        if _rowcount > 0 :
-            _head = np.int64(local_data.at[0, 'trade_date'])
-            _tear = np.int64(local_data.at[_rowcount-1, 'trade_date'])
+        if _rowcount > 0:
+            _head = StockDataSet.float_date(local_data.at[0, 'trade_date'])
+            _tear = StockDataSet.float_date(local_data.at[_rowcount-1, 'trade_date'])
+            
+            # _head = np.int64(local_data.at[0, 'trade_date'])
+            # _tear = np.int64(local_data.at[_rowcount-1, 'trade_date'])
+            # print(_head, _tear, enddate, startdate)
+            # print(enddate - _head, _tear - startdate)
 
-            if _head+1 < enddate:
+            if enddate - _head > 10: #_head+1 < enddate:
                 down_data = self._download(code, _head + 1, enddate, stype, time_unit)
                 local_data = self._join(local_data, down_data)
-            if _tear-1 > startdate:
+            if _tear - startdate > 10: #_tear-1 > startdate:
                 down_data = self._download(code, startdate, _tear-1, stype, time_unit)
                 local_data = self._join(local_data, down_data)
         else:

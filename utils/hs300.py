@@ -1510,9 +1510,9 @@ stock_list_str =  '''
 p = re.compile(u"(s[h,z])(\d{6})/nc.shtml\" target=\"_blank\">([\u4e00-\u9fa5]+)</a></div>")
 # p = re.compile(u"/(s[h,z])(\d{4})/nc.shtml\" target=\"_blank\">([\u4e00-\u9fa5]+)</a></div>")
 m = re.findall(p, stock_list_str)
-# print( m )
-print( len(m) )
-pf.DataFrame( m ).to_csv('./data/hs300.csv')
+print( m )
+# print( len(m) )
+# pf.DataFrame( m ).to_csv('./data/hs300.csv')
 
 
 
