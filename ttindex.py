@@ -195,7 +195,7 @@ class TurTleIndex:
 
         _vulnerable.append(0)
         for i in range(1, len(close)):
-            v = (close[i] - HP1[i])/HP1[i]
+            v = (close[i-1] - HP1[i])/HP1[i]
             _vulnerable.append(v*100)
         return _vulnerable
 
@@ -209,7 +209,7 @@ class TurTleIndex:
 
         _strong.append(0)
         for i in range(1, len(close)):
-            s = (close[i] - LP1[i])/LP1[i]
+            s = (close[i-1] - LP1[i])/LP1[i]
             _strong.append(s*100)
         return _strong
 
