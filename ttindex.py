@@ -32,38 +32,12 @@ class TurTleIndex:
         self.data['low' ] = data_table[3]
         self.data['close'] = data_table[4]
 
-    # def __init__(self, data_list, long_period, short_period, append_multiple, loss_multiple):
-    #     data_table = np.transpose( data_list )
-
-    #     self.data = {}
-    #     self.wave = {}
-
-    #     self.high_prices = {}
-    #     self.high_locats = {}
-    #     self.low_prices = {}
-    #     self.low_locats = {}
-
-    #     self.date_str = []
-    #     for i in range(0, len(data_table[0])):
-    #         datestr = num2date(data_table[0][i]).strftime('%Y%m%d')
-    #         self.date_str.append(datestr)
-
-    #     self.data['date'] = data_table[0]
-    #     self.data['date_str'] = self.date_str
-    #     self.data['open'] = data_table[1]
-    #     self.data['high'] = data_table[2]
-    #     self.data['low' ] = data_table[3]
-    #     self.data['close'] = data_table[4]
-
-    #     self.price_wave(long_period, short_period)
-    #     self.long_trade(long_period, short_period, append_multiple, loss_multiple)
-
     def print_records(self):
         print( pd.DataFrame(self.data) )
 
-    def save_data(self, path, code):
+    def save_data(self, code, path = './tsindex'):
         records = pd.DataFrame(self.data)
-        records.to_csv(path + '/' + code + '.ttindex.csv')
+        records.to_csv(path + '/' + code + '.tsindex.csv')
 
     def price_wave(self, long_period, short_period):
         price_wave = self.data['high'] - self.data['low']
@@ -78,6 +52,9 @@ class TurTleIndex:
     def _highest_price(self, x, n):
         ps = []
         ls = []
+
+        if n in self.high_prices:
+            return
 
         if n == 1:
             ps.append(x[0])
@@ -115,7 +92,8 @@ class TurTleIndex:
             ps2 = self.high_prices[m2]
             ls2 = self.high_locats[m2]
 
-            for i in range(0, m2):
+            _len = min(m2, len(x))
+            for i in range(0, _len):
                 ps.append(ps2[i])
                 ls.append(ls2[i])
 
@@ -134,7 +112,9 @@ class TurTleIndex:
         ps = []
         ls = []
 
-        if n == 1:
+        if n in self.low_prices:
+            return
+        elif n == 1:
             ps.append(x[0])
             ls.append(0)
 
@@ -170,7 +150,8 @@ class TurTleIndex:
             ps2 = self.low_prices[m2]
             ls2 = self.low_locats[m2]
 
-            for i in range(0, m2):
+            _len = min(m2, len(x))
+            for i in range(0, _len):
                 ps.append(ps2[i])
                 ls.append(ls2[i])
 
@@ -205,7 +186,7 @@ class TurTleIndex:
 
         low  = self.data['low' ]
         self._lowest_price (low , period)
-        LP1 = self.low_prices [period]
+        LP1 = self.low_prices[ period ]
 
         _strong.append(0)
         for i in range(1, len(close)):
@@ -334,6 +315,32 @@ class TurTleIndex:
         self.data['key_prices'] = key_prices
         # print('trade count', len(high), len(key_prices))
 
+
+    # def __init__(self, data_list, long_period, short_period, append_multiple, loss_multiple):
+    #     data_table = np.transpose( data_list )
+
+    #     self.data = {}
+    #     self.wave = {}
+
+    #     self.high_prices = {}
+    #     self.high_locats = {}
+    #     self.low_prices = {}
+    #     self.low_locats = {}
+
+    #     self.date_str = []
+    #     for i in range(0, len(data_table[0])):
+    #         datestr = num2date(data_table[0][i]).strftime('%Y%m%d')
+    #         self.date_str.append(datestr)
+
+    #     self.data['date'] = data_table[0]
+    #     self.data['date_str'] = self.date_str
+    #     self.data['open'] = data_table[1]
+    #     self.data['high'] = data_table[2]
+    #     self.data['low' ] = data_table[3]
+    #     self.data['close'] = data_table[4]
+
+    #     self.price_wave(long_period, short_period)
+    #     self.long_trade(long_period, short_period, append_multiple, loss_multiple)
 
 
         # self.strong = {}

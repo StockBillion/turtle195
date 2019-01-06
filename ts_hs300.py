@@ -28,22 +28,26 @@ cmdline = {
     'stop_loss': 3,
     'long_cycle': 55,
     'short_cycle': 20,
-    'strong_cycle': 120,
+    'strong_cycle': 20,
     'data_path': './data13',
-    'stock_count': 20
+    'stock_count': 20,
+    'record-file': 'hs300'
 }
 
 
 def InputArgs():
     parser = argparse.ArgumentParser(description="show example")
+
     # parser.add_argument('hs300_stocks', default=['000300.sh'], nargs='*')
-    parser.add_argument("-s", "--start_date", default='20160101', help="start date")
-    parser.add_argument("-e", "--end_date", default='20190101', help="end date")
     parser.add_argument("-a", "--append", default=1, help="append")
-    parser.add_argument("-l", "--stop_loss", default=3, help="stop loss")
-    parser.add_argument("-u", "--loss_unit", default=0.01, help="loss unit")
     parser.add_argument("-c", "--count", default=20, help="stock count")
+    parser.add_argument("-e", "--end_date", default='20190101', help="end date")
+    parser.add_argument("-f", "--record_file", default='hs300', help="record file")
+    parser.add_argument("-l", "--stop_loss", default=3, help="stop loss")
     parser.add_argument("-p", "--data_path", default='./data13', help="stock data path")
+    parser.add_argument("-s", "--start_date", default='20160101', help="start date")
+    parser.add_argument("-S", "--strong_cycle", default=20, help="strong cycle")
+    parser.add_argument("-u", "--loss_unit", default=0.01, help="loss unit")
 
     ARGS = parser.parse_args()
     global cmdline
@@ -57,15 +61,19 @@ def InputArgs():
 
     if ARGS.data_path:
         cmdline['data_path'] = ARGS.data_path
+    if ARGS.record_file:
+        cmdline['record_file'] = ARGS.record_file
     if ARGS.count:
         cmdline['stock_count'] = int(ARGS.count)
 
     if ARGS.loss_unit:
         cmdline['loss_unit'] = float(ARGS.loss_unit)
     if ARGS.append:
-        cmdline['append'] = float(ARGS.append)
+        cmdline['append'] = int(ARGS.append)
     if ARGS.stop_loss:
-        cmdline['stop_loss'] = float(ARGS.stop_loss)
+        cmdline['stop_loss'] = int(ARGS.stop_loss)
+    if ARGS.strong_cycle:
+        cmdline['strong_cycle'] = int(ARGS.strong_cycle)
     # print( cmdline )
 
 
@@ -76,10 +84,11 @@ def loaddata(start_index, end_index):
 
     for i in range(start_index, end_index): # stock in stocks:
         stock = hs300_stocks[i]
-        code = stock[1] + '.' + stock[0]
-        dataset.load(code, cmdline['start_date'], cmdline['end_date'], 'stock', 'daily')
-        # dataset.load(code, startdate, enddate, 'stock', 'daily')
+        dataset.load(stock[1] + '.' + stock[0], cmdline['start_date'], 
+            cmdline['end_date'], 'stock', 'daily')
         print("load", str(i), "stocks.")
+        # code = stock[1] + '.' + stock[0]
+        # dataset.load(code, startdate, enddate, 'stock', 'daily')
     
 
 class TurtleStrongTest:
@@ -99,36 +108,64 @@ class TurtleStrongTest:
 
         self.closes = {}
         self.opens = {}
+        self.highs = {}
+        self.curr_closes = {}
         self.long_indexs = {}
         self.turtles = {}
 
         self.scale = 1.0/max_count
         self.hold_count = 0
+        self.curr_holds = {}
 
         self.market_values = []
         self.market_values.append(self.account.market_value*0.001)
         self.account.ProfitDaily()
 
         self.dataset.read(hs300, 'daily')
-        self.index_dates, self.hs300_list, ave_price, volumes = self.dataset.parse_data()
+        self.index_dates, self.hs300_list, ave_price, volumes = self.dataset.parse_data('index')
 
         for i in range(0, self.all_count):
             code = hs300_stocks[i][1] + '.' + hs300_stocks[i][0]
             self.codes.append(code)
             
             self.dataset.read(code, 'daily')
-            _dates, _list, ave_price, volumes = self.dataset.parse_data()
+            _dates, _list, ave_price, volumes = self.dataset.parse_data('stock')
             self.date_vecs[code] = _dates
 
             self.turtles[code] = TurTleIndex(_list)
-            self.long_indexs[code] = self.turtles[code].long_index(120)
+            self.long_indexs[code] = self.turtles[code].long_index( cmdline['strong_cycle'] )
             self.data_indexs[code] = 0
+
             self.closes[code] = self.turtles[code].data['close']
             self.opens[code] = self.turtles[code].data['open']
+            self.highs[code] = self.turtles[code].data['high']
 
-    def _sort_strong_stocks(self, _date):
-        _curr_stocks = []
-        self._close = {}
+    def _stock_turtle(self):
+        self.states = {}
+        self.key_prices = {}
+        self.long_waves = {}
+
+        self.turtles[hs300] = TurTleIndex(self.hs300_list)
+        self.turtles[hs300].price_wave(cmdline['long_cycle'], cmdline['short_cycle'])
+        self.turtles[hs300].long_trade(cmdline['long_cycle'], cmdline['short_cycle'], 
+            cmdline['append'], cmdline['stop_loss'])
+        # self.turtles[hs300].save_data(hs300)
+        self.closes[hs300] = self.turtles[hs300].data['close']
+        self.states[hs300] = self.turtles[hs300].data['state']
+
+        for code in self.codes:
+            self.turtles[code].price_wave(cmdline['long_cycle'], cmdline['short_cycle'])
+            self.turtles[code].long_trade(cmdline['long_cycle'], cmdline['short_cycle'], 
+                cmdline['append'], cmdline['stop_loss'])
+
+            self.states[code] = self.turtles[code].data['state']
+            self.key_prices[code] = self.turtles[code].data['key_prices']
+            self.long_waves[code] = self.turtles[code].data['long_wave' ]
+            # self.turtles[code].save_data(code)
+
+
+    def _update_index(self, _date):
+        self.curr_closes = {}
 
         for code in self.codes:
             dates = self.date_vecs[code]
@@ -139,17 +176,29 @@ class TurtleStrongTest:
             _idx = self.data_indexs[code]
             if _idx >= _len or dates[_idx] > _date: 
                 continue
+            self.curr_closes[code] = self.closes[code][_idx]
 
-            self._close[code] = self.closes[code][_idx]
-            _curr_stocks.append({'code': code, 'close': self._close[code], 
-                'strong': self.long_indexs[code][_idx]})
-
+    def _sort_strong_stocks(self, _date):
+        _curr_stocks = []
+        for code in self.curr_closes:
+            _curr_stocks.append({ 'code': code, 'close': self.curr_closes[code], 
+                'strong': self.long_indexs[code][self.data_indexs[code]] })
         return sorted(_curr_stocks, key = lambda stock: stock['strong'], reverse = True)
 
-    def _update_hold(self, _date):
-        self.sorted_stocks = self._sort_strong_stocks(_date)
+    def _clear(self, _date):
+        for code in self.account.stocks.index:
+            volume = self.account.Volume(code)
+            if volume < 10 and volume > -10:
+                continue
+            self.account.Order(code, self.opens[code][self.data_indexs[code]], -volume, _date)
+            self.hold_count -= 1
+        # print( self.hold_count, self.account.stocks )
+
+
+    def _update_long_hold(self, _date):
+        # self.sorted_stocks = self._sort_strong_stocks(_date)
         self.stock_sidxs = {}
-        self.sorted_count = min(len(self.sorted_stocks), cmdline['stock_count'])
+        self.sorted_count = min(len(self.sorted_stocks), self.all_count)
 
         for i in range(0, self.sorted_count):
             code = self.sorted_stocks[i]['code']
@@ -167,7 +216,39 @@ class TurtleStrongTest:
                 self.account.Order(code, self.opens[code][self.data_indexs[code]], -volume, _date)
                 self.hold_count -= 1
 
+    def _open_turtle(self, code, _date, _cash_unit):
+        _idx = self.data_indexs[code]
+        _Nl = self.long_waves[code][_idx]
+        _kp = self.key_prices[code][_idx]
+        _cash_unit = _cash_unit * cmdline['loss_unit'] / _Nl
+
+        self.curr_holds[code] = { 'cash_unit': _cash_unit, 'count': 1, 
+            'last_price': _kp, 'Nl': _Nl }
+        self.account.Order(code, _kp, _cash_unit / _kp, _date)
+
+    def _update_turtle(self, _date):
+        for code in self.account.stocks.index:
+            _idx = self.data_indexs[code]
+            _kp = self.key_prices[code][_idx]
+            volume = self.account.Volume(code)
+
+            if volume > 0 and not self.states[code][_idx]:
+                self.account.Order(code, _kp, -volume, _date)
+                self.hold_count -= 1
+                del self.curr_holds[code]
+            if code in self.curr_holds and self.curr_holds[code]['count'] < self.states[code][_idx]:
+                if self.states[code][_idx] - self.curr_holds[code]['count'] > 1:
+                    _kp = self.curr_holds[code]['last_price'] + self.curr_holds[code]['Nl'] * cmdline['append']
+                if _kp > self.highs[code][_idx]:
+                    continue
+                volume = self.curr_holds[code]['cash_unit'] / _kp
+                self.account.Order(code, _kp, volume, _date)
+                self.curr_holds[code]['count'] += 1
+
+
     def long_hold(self):
+        '''长期持有强势股'''
+
         for _idx in range(1, len(self.index_dates)):
             self.account.ProfitDaily()
             _date = self.index_dates[_idx]
@@ -175,13 +256,52 @@ class TurtleStrongTest:
             if _date < cmdline['start_date'] or _date > cmdline['end_date']:
                 self.market_values.append(self.account.market_value*0.001)
                 continue
-            self._update_hold(_date)
 
-            self.account.UpdateValue(self._close)
+            self._update_index(_date)
+            self.sorted_stocks = self._sort_strong_stocks(_date)
+            self._update_long_hold(_date)
+
+            self.account.UpdateValue(self.curr_closes)
+            self.market_values.append(self.account.market_value*0.001)
+
+
+    def hold_turtle(self):
+        '''长期持股,根据海龟法则交易个股'''
+
+        self._stock_turtle()
+
+        for _idx in range(1, len(self.index_dates)):
+            self.account.ProfitDaily()
+            _date = self.index_dates[_idx]
+
+            if _date < cmdline['start_date'] or _date > cmdline['end_date']:
+                self.market_values.append(self.account.market_value*0.001)
+                continue
+            self._update_index(_date)
+
+            if self.hold_count < self.max_count:
+                self.sorted_stocks = self._sort_strong_stocks(_date)
+                self.sorted_count = min(len(self.sorted_stocks), self.all_count)
+                _cash_unit = self.account.market_value * self.scale
+
+                for i in range(0, self.sorted_count):
+                    code = self.sorted_stocks[i]['code']
+                    volume = self.account.Volume(code)
+
+                    if volume < 10 and self.states[code][self.data_indexs[code]]:
+                        self._open_turtle(code, _date, _cash_unit)
+                    if self.hold_count >= self.max_count:
+                        break
+
+            self._update_turtle(_date)
+            # self._update_turtle_hold(_date, self.account.market_value*self.scale)
+            self.account.UpdateValue(self.curr_closes)
             self.market_values.append(self.account.market_value*0.001)
 
 
     def turtle_hold(self):
+        '''根据海龟法则分析指数数据,判断牛熊市,决定是否持股'''
+        
         self.turtles[hs300] = TurTleIndex(self.hs300_list)
         self.turtles[hs300].price_wave(cmdline['long_cycle'], cmdline['short_cycle'])
         self.turtles[hs300].long_trade(cmdline['long_cycle'], cmdline['short_cycle'], 
@@ -198,16 +318,14 @@ class TurtleStrongTest:
                 self.market_values.append(self.account.market_value*0.001)
                 continue
 
+            self._update_index(_date)
+            self.sorted_stocks = self._sort_strong_stocks(_date)
             if self.hs300_states[_idx]:
-                self._update_hold(_date)
-            else:
-                for code in self.account.stocks.index:
-                    volume = self.account.Volume(code)
-                    if volume > 0:
-                        self.account.Order(code, self.opens[code][self.data_indexs[code]], -volume, _date)
-                        self.hold_count -= 1
+                self._update_long_hold(_date)
+            elif self.hold_count:
+                self._clear(_date)
                 
-            self.account.UpdateValue(self._close)
+            self.account.UpdateValue(self.curr_closes)
             self.market_values.append(self.account.market_value*0.001)
 
     def show(self):
@@ -226,12 +344,61 @@ if __name__ == "__main__":
     _start_time = time.time()
 
     test = TurtleStrongTest(15, 5)
+    # test.long_hold()
     # test.turtle_hold()
-    test.long_hold()
+    test.hold_turtle()
     test.show()
+    test.account.save_records(cmdline['record_file']) #('turtle-hold-07-14')
 
     _end_time = time.time()
     print( 'use time:', _end_time-_start_time, 'seconds')
+
+    test.plot()
+
+
+
+        # _curr_stocks = []
+        # self.curr_closes = {}
+
+        # for code in self.codes:
+        #     dates = self.date_vecs[code]
+        #     _len = len(dates)
+
+        #     while self.data_indexs[code] < _len and dates[self.data_indexs[code]] < _date:
+        #         self.data_indexs[code] += 1
+        #     _idx = self.data_indexs[code]
+        #     if _idx >= _len or dates[_idx] > _date: 
+        #         continue
+
+        #     self.curr_closes[code] = self.closes[code][_idx]
+        #     _curr_stocks.append({'code': code, 'close': self.curr_closes[code], 
+        #         'strong': self.long_indexs[code][_idx]})
+
+        # return sorted(_curr_stocks, key = lambda stock: stock['strong'], reverse = True)
+
+
+    # def _update_turtle_hold(self, _date, _cash_unit):
+    #     if self.hold_count < self.max_count:
+    #         self.sorted_stocks = self._sort_strong_stocks(_date)
+    #         # self.stock_sidxs = {}
+    #         self.sorted_count = min(len(self.sorted_stocks), self.all_count)
+
+    #         for i in range(0, self.sorted_count):
+    #             code = self.sorted_stocks[i]['code']
+    #             # self.stock_sidxs[code] = i
+    #             volume = self.account.Volume(code)
+    #             if volume < 10 and self.hold_count < self.max_count:
+    #                 self._turtle_open(code, _date, _cash_unit)
+    #     self._update_turtle()
+
+                    # _idx = self.data_indexs[code]
+                    # _Nl = self.long_waves[code][_idx]
+                    # _kp = self.key_prices[code][_idx]
+                    # _cash_unit = _cash_unit * cmdline['loss_unit'] / _Nl
+                    # self.curr_holds[code] = ['cash_unit': _cash_unit, 'count': 1, 
+                    #     'last_price': _kp, 'Nl': _Nl]
+                    # volume = _cash_unit / _kp
+                    # self.account.Order(code, _kp, -volume, _date)
 
 
     # loaddata(0, len(hs300_stocks))
@@ -294,7 +461,7 @@ if __name__ == "__main__":
     #     account.ProfitDaily()
     #     _date = index_dates[_idx]
 
-    #     # _close = {}
+    #     # curr_closes = {}
     #     # _curr_stocks = []
 
     #     if _date < start_date or _date > end_date:
@@ -314,10 +481,10 @@ if __name__ == "__main__":
     #         # volume = account.stocks.at[code, 'volume']
     #         # account.Order(code, kp, -volume, dates[i])
 
-    #     _sorted_stocks, _close = sort_strong_stocks(codes, data_indexs, _date, closes, long_indexs)
+    #     _sorted_stocks, curr_closes = sort_strong_stocks(codes, data_indexs, _date, closes, long_indexs)
     #     print( _sorted_stocks )
 
-    #     account.UpdateValue(_close)
+    #     account.UpdateValue(curr_closes)
     #     market_values.append(account.market_value)
 
     # plot = StockDisp(hs300)
@@ -361,8 +528,8 @@ if __name__ == "__main__":
         #         data_indexs[code] += 1
         #     if data_indexs[code] >= len(dates) or dates[data_indexs[code]] > _date: 
         #         continue
-        #     _close[code] = closes[code][data_indexs[code]]
-        #     _curr_stocks.append({'code': code, 'close': _close[code], 'strong': long_indexs[code][data_indexs[code]]})
+        #     curr_closes[code] = closes[code][data_indexs[code]]
+        #     _curr_stocks.append({'code': code, 'close': curr_closes[code], 'strong': long_indexs[code][data_indexs[code]]})
         # _sorted_stocks = sorted(_curr_stocks, key = lambda stock: stock['strong'], reverse = True)
 
     # if ARGS.hs300_stocks:
@@ -386,8 +553,8 @@ if __name__ == "__main__":
 # short_cycle= 20
 # strong_cycle=120
 
-# def _update_holds(account, codes, _sorted_stocks, _close, _opens, data_indexs):
-#     # _sorted_stocks, _close = sort_strong_stocks(codes, data_indexs, 
+# def _update_long_holds(account, codes, _sorted_stocks, curr_closes, _opens, data_indexs):
+#     # _sorted_stocks, curr_closes = sort_strong_stocks(codes, data_indexs, 
 #     #             date_vecs, _date, closes, long_indexs)
 #     _stock_sidxs = {}
 #     _stock_count = min(len(_sorted_stocks), cmdline['stock_count'])
@@ -459,7 +626,7 @@ if __name__ == "__main__":
 #     for _idx in range(1, len(index_dates)):
 #         account.ProfitDaily()
 #         _date = index_dates[_idx]
-#         _close = {}
+#         curr_closes = {}
 
 #         if _date < cmdline['start_date'] or _date > cmdline['end_date']:
 #             market_values.append(account.market_value*0.001)
@@ -469,7 +636,7 @@ if __name__ == "__main__":
 #         # _stock_count = len(hold_stocks)
 
 #         if hs300_states[_idx]:
-#             _sorted_stocks, _close = sort_strong_stocks(codes, data_indexs, 
+#             _sorted_stocks, curr_closes = sort_strong_stocks(codes, data_indexs, 
 #                 date_vecs, _date, closes, long_indexs)
 #             _stock_sidxs = {}
 #             _stock_count = min(len(_sorted_stocks), cmdline['stock_count'])
@@ -496,7 +663,7 @@ if __name__ == "__main__":
 #                     account.Order(code, opens[code][data_indexs[code]], -volume, _date)
 #                     count -= 1
             
-#         account.UpdateValue(_close)
+#         account.UpdateValue(curr_closes)
 #         market_values.append(account.market_value*0.001)
 
 #     print( account.stocks )
@@ -511,7 +678,7 @@ if __name__ == "__main__":
 
 # def sort_strong_stocks(codes, data_indexs, date_vecs, _date, closes, long_indexs):
 #     _curr_stocks = []
-#     _close = {}
+#     curr_closes = {}
 
 #     for code in codes:
 #         dates = date_vecs[code]
@@ -523,12 +690,12 @@ if __name__ == "__main__":
 #         if _idx >= _len or dates[_idx] > _date: 
 #             continue
 
-#         _close[code] = closes[code][_idx]
-#         _curr_stocks.append({'code': code, 'close': _close[code], 
+#         curr_closes[code] = closes[code][_idx]
+#         _curr_stocks.append({'code': code, 'close': curr_closes[code], 
 #             'strong': long_indexs[code][_idx]})
 
 #     _sorted_data = sorted(_curr_stocks, key = lambda stock: stock['strong'], reverse = True)
-#     return _sorted_data, _close
+#     return _sorted_data, curr_closes
 
 
 # def long_hold_strong_stocks(max_sidx, max_count):
@@ -578,7 +745,7 @@ if __name__ == "__main__":
 #             market_values.append(account.market_value*0.001)
 #             continue
 
-#         _sorted_stocks, _close = sort_strong_stocks(codes, data_indexs, 
+#         _sorted_stocks, curr_closes = sort_strong_stocks(codes, data_indexs, 
 #             date_vecs, _date, closes, long_indexs)
 #         _stock_sidxs = {}
 #         _stock_count = min(len(_sorted_stocks), cmdline['stock_count'])
@@ -599,7 +766,7 @@ if __name__ == "__main__":
 #                 account.Order(code, opens[code][data_indexs[code]], -volume, _date)
 #                 count -= 1
 
-#         account.UpdateValue(_close)
+#         account.UpdateValue(curr_closes)
 #         market_values.append(account.market_value*0.001)
 
 #     # print( market_values )

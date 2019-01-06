@@ -17,8 +17,8 @@ class StockDataSet:
         self.stocks = []
         self.path = path
 
-    def parse_data(self):
-        return self._parse_data(self.stocks)
+    def parse_data(self, stype = 'stock'):
+        return self._parse_data(self.stocks, stype)
 
     # def parse_data(self, code):
     #     if code not in self.stocks:
@@ -63,13 +63,17 @@ class StockDataSet:
         return self.stocks
         
 
-    def _parse_data(self, stock_data):
+    def _parse_data(self, stock_data, stype = 'stock'):
         data_list = []
         ave_price = []
         volumes = []
 
         for rnum, row in stock_data.iterrows():
-            tscode, trade_date, close, open, high, low = row[0:6]
+            if stype == 'index':
+                tscode, trade_date, close, open, high, low = row[0:6]
+            elif stype == 'stock':
+                tscode, trade_date, open, high, low, close = row[0:6]
+
             vol,amount = row[9:11]
             _date = dt.datetime.strptime(trade_date, '%Y%m%d')
             timenum = date2num(_date)
@@ -196,7 +200,7 @@ class StockDataSet:
         return _date
 
 
-    def _download(self, code, startdate, enddate, stype, time_unit = 'daily'):
+    def _download(self, code, startdate, enddate, stype = 'stock', time_unit = 'daily'):
         time.sleep(0.01)
         startdate = StockDataSet.str_date(startdate)
         enddate = StockDataSet.str_date(enddate)
@@ -332,8 +336,10 @@ class StockAccount:
         return volume
 
     def Order(self, code, price, volume, order_time):
-        order_time = num2date(order_time).strftime('%Y%m%d')
         _cost, _commision, volume = self.Format(volume, price)
+        if not volume:
+            return 
+        order_time = num2date(order_time).strftime('%Y%m%d')
         # print(order_time, code, price, volume, _cost, _commision, self.cash)
 
         if _cost < 0 and self.credit > 0:
@@ -491,6 +497,14 @@ class MovingAverage:
         
         self.ma_indexs[n] = mas
         return self.ma_indexs[n]
+
+
+if __name__ == "__main__":
+    dataset = StockDataSet('./test')
+    data = dataset._download('000300.sh', '20180101', '20190101', 'index', 'daily')
+    print( data )
+    data = dataset._download('002001.sz', '20180101', '20190101', 'stock', 'daily')
+    print( data )
 
 
 # def parse_stock_data(stock_data):
