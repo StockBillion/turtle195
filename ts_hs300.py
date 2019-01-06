@@ -99,7 +99,7 @@ class TurtleStrongTest:
         self.max_count = max_count
 
         self.dataset = StockDataSet(cmdline['data_path'])
-        self.account = StockAccount(1000000, 0)
+        self.account = StockAccount(1000 * 10000, 0)
         self.all_count = min(len(hs300_stocks), cmdline['stock_count'])
 
         self.codes = []
@@ -114,7 +114,7 @@ class TurtleStrongTest:
         self.turtles = {}
 
         self.scale = 1.0/max_count
-        self.hold_count = 0
+        # self.hold_count = 0
         self.curr_holds = {}
 
         self.market_values = []
@@ -191,30 +191,30 @@ class TurtleStrongTest:
             if volume < 10 and volume > -10:
                 continue
             self.account.Order(code, self.opens[code][self.data_indexs[code]], -volume, _date)
-            self.hold_count -= 1
+            # self.hold_count -= 1
         # print( self.hold_count, self.account.stocks )
 
 
     def _update_long_hold(self, _date):
         # self.sorted_stocks = self._sort_strong_stocks(_date)
         self.stock_sidxs = {}
-        self.sorted_count = min(len(self.sorted_stocks), self.all_count)
+        _sorted_count = min(len(self.sorted_stocks), self.all_count)
 
-        for i in range(0, self.sorted_count):
+        for i in range(0, _sorted_count):
             code = self.sorted_stocks[i]['code']
             self.stock_sidxs[code] = i
             volume = self.account.Volume(code)
-            if i < self.max_sidx and self.hold_count < self.max_count and volume < 100:
+            if i < self.max_sidx and len(self.account.stocks) < self.max_count and volume < 100:
                 kp = self.opens[code][self.data_indexs[code]]
                 volume = self.account.market_value * self.scale / kp
                 self.account.Order(code, kp, volume, _date)
-                self.hold_count += 1
+                # self.hold_count += 1
 
         for code in self.account.stocks.index:
             volume = self.account.Volume(code)
             if volume > 0 and code in self.stock_sidxs and self.stock_sidxs[code] >= self.max_sidx:
                 self.account.Order(code, self.opens[code][self.data_indexs[code]], -volume, _date)
-                self.hold_count -= 1
+                # self.hold_count -= 1
 
     def _open_turtle(self, code, _date, _cash_unit):
         _idx = self.data_indexs[code]
@@ -225,6 +225,7 @@ class TurtleStrongTest:
         self.curr_holds[code] = { 'cash_unit': _cash_unit, 'count': 1, 
             'last_price': _kp, 'Nl': _Nl }
         self.account.Order(code, _kp, _cash_unit / _kp, _date)
+        # self.hold_count += 1
 
     def _update_turtle(self, _date):
         for code in self.account.stocks.index:
@@ -233,8 +234,8 @@ class TurtleStrongTest:
             volume = self.account.Volume(code)
 
             if volume > 0 and not self.states[code][_idx]:
+                # self.hold_count -= 1
                 self.account.Order(code, _kp, -volume, _date)
-                self.hold_count -= 1
                 del self.curr_holds[code]
             if code in self.curr_holds and self.curr_holds[code]['count'] < self.states[code][_idx]:
                 if self.states[code][_idx] - self.curr_holds[code]['count'] > 1:
@@ -278,19 +279,20 @@ class TurtleStrongTest:
                 self.market_values.append(self.account.market_value*0.001)
                 continue
             self._update_index(_date)
+            # print( self.hold_count, self.max_count, StockDataSet.str_date( _date) )
 
-            if self.hold_count < self.max_count:
+            if len(self.account.stocks) < self.max_count:
                 self.sorted_stocks = self._sort_strong_stocks(_date)
-                self.sorted_count = min(len(self.sorted_stocks), self.all_count)
+                _sorted_count = min(len(self.sorted_stocks), self.all_count)
                 _cash_unit = self.account.market_value * self.scale
 
-                for i in range(0, self.sorted_count):
+                for i in range(0, _sorted_count):
                     code = self.sorted_stocks[i]['code']
                     volume = self.account.Volume(code)
 
                     if volume < 10 and self.states[code][self.data_indexs[code]]:
                         self._open_turtle(code, _date, _cash_unit)
-                    if self.hold_count >= self.max_count:
+                    if len(self.account.stocks) >= self.max_count:
                         break
 
             self._update_turtle(_date)
@@ -322,7 +324,7 @@ class TurtleStrongTest:
             self.sorted_stocks = self._sort_strong_stocks(_date)
             if self.hs300_states[_idx]:
                 self._update_long_hold(_date)
-            elif self.hold_count:
+            elif len(self.account.stocks):
                 self._clear(_date)
                 
             self.account.UpdateValue(self.curr_closes)
@@ -330,12 +332,13 @@ class TurtleStrongTest:
 
     def show(self):
         print( self.account.stocks )
+        print( self.account.get_records() )
         self.account.status_info()
 
     def plot(self):
         plot = StockDisp(hs300)
         plot.LogKDisp(plot.ax1, self.hs300_list)
-        plot.LogPlot(plot.ax1, self.index_dates, self.market_values, 'r', -1)
+        plot.LogPlot(plot.ax1, self.index_dates, self.market_values, 'r', 1.5)
         plot.show()
 
 
@@ -343,7 +346,7 @@ if __name__ == "__main__":
     InputArgs()
     _start_time = time.time()
 
-    test = TurtleStrongTest(15, 5)
+    test = TurtleStrongTest(30, 10)
     # test.long_hold()
     # test.turtle_hold()
     test.hold_turtle()

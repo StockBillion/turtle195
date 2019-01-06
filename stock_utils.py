@@ -339,7 +339,8 @@ class StockAccount:
         _cost, _commision, volume = self.Format(volume, price)
         if not volume:
             return 
-        order_time = num2date(order_time).strftime('%Y%m%d')
+        order_time = StockDataSet.str_date( order_time )
+        # order_time = num2date(order_time).strftime('%Y%m%d')
         # print(order_time, code, price, volume, _cost, _commision, self.cash)
 
         if _cost < 0 and self.credit > 0:
