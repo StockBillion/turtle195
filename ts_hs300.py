@@ -346,10 +346,10 @@ if __name__ == "__main__":
     InputArgs()
     _start_time = time.time()
 
-    test = TurtleStrongTest(30, 10)
-    # test.long_hold()
+    test = TurtleStrongTest(20, 5)
+    test.long_hold()
     # test.turtle_hold()
-    test.hold_turtle()
+    # test.hold_turtle()
     test.show()
     test.account.save_records(cmdline['record_file']) #('turtle-hold-07-14')
 
