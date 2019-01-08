@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #-*- coding: utf8 -*-
-import argparse, datetime as dt, time
+import argparse, sys, datetime as dt, time
 from matplotlib.pylab import date2num, num2date
 from ttindex import TurTleIndex
 from stock_utils import StockDataSet, StockDisp, StockAccount
@@ -104,7 +104,6 @@ class TurtleStrongTest:
         self.scale = 1.0/max_count
 
         self.dataset = StockDataSet(cmdline['data_path'])
-        self.account = StockAccount(100 * 10000, 0)
         self.all_count = min(len(hs300_stocks), cmdline['stock_count'])
 
         self.year = 0
@@ -126,8 +125,6 @@ class TurtleStrongTest:
         self.curr_holds = {}
         self.curr_prices = {}
 
-        self.market_values = []
-        self.market_values.append(self.account.market_value*0.001)
         # self.account.ProfitDaily()
 
         self.dataset.read(hs300, 'daily')
@@ -149,6 +146,9 @@ class TurtleStrongTest:
             self.opens[code] = self.turtles[code].data['open']
             self.highs[code] = self.turtles[code].data['high']
             self.lows[code] = self.turtles[code].data['low']
+
+            if i % 20 == 19:
+                print('read', i+1, 'stocks data, run', time.time() - self.start, 'seconds.')
         print('read', len(self.codes), 'stocks data, run', time.time() - self.start, 'seconds.')
 
     def _index_turtle(self):
@@ -207,10 +207,6 @@ class TurtleStrongTest:
         if self.highs[code][_idx] - self.lows[code][_idx] > 0.01:
             _volume = self.account._Order(code, trade_price, volume, _date)
         return _volume
-
-        # if not _volume:
-        #     print(StockDataSet.str_date(_date), code, volume, trade_price, self.highs[code][_idx], self.lows[code][_idx])
-        #     _volume = self.account._Order(code, trade_price, volume, _date)
 
     def _clear(self, _date):
         for code in self.account.stocks.index:
@@ -291,9 +287,20 @@ class TurtleStrongTest:
             self.year = _year
             print( "process to", self.year, ', market_value', self.account.market_value, ', run', time.time() - self.start, 'seconds.' )
 
+    def _start_static(self):
+        funcName = sys._getframe().f_back.f_code.co_name #获取调用函数名
+        lineNumber = sys._getframe().f_back.f_lineno     #获取行号
+        coname = sys._getframe().f_code.co_name          #获取当前函数名
+        print( coname, funcName, lineNumber ) 
+
+        self.account = StockAccount(100 * 10000, 0)
+        self.market_values = []
+        self.market_values.append(self.account.market_value*0.001)
+
 
     def long_hold(self):
         '''长期持有强势股'''
+        self._start_static()
 
         for _idx in range(1, len(self.index_dates)):
             _date = self.index_dates[_idx]
@@ -317,6 +324,7 @@ class TurtleStrongTest:
     def hold_turtle(self):
         '''长期持股,根据海龟法则交易个股'''
 
+        self._start_static()
         self._stock_turtle()
 
         for _idx in range(1, len(self.index_dates)):
@@ -339,6 +347,7 @@ class TurtleStrongTest:
     def turtle_turtle(self):
         '''根据海龟法则分析指数判断牛熊市，然后根据海龟法则交易个股'''
 
+        self._start_static()
         self._index_turtle()
         self._stock_turtle()
 
@@ -365,7 +374,8 @@ class TurtleStrongTest:
 
     def turtle_hold(self):
         '''根据海龟法则分析指数数据,判断牛熊市,决定是否持股'''
-        
+
+        self._start_static()
         self._index_turtle()
 
         for _idx in range(1, len(self.index_dates)):
@@ -395,26 +405,60 @@ class TurtleStrongTest:
         # print( self.account.get_records() )
         self.account.status_info()
 
-    def plot(self):
-        plot = StockDisp(hs300)
+    def plot(self, cmd, photo_file):
+        plot = StockDisp(cmd + '-' + hs300)
         plot.LogKDisp(plot.ax1, self.hs300_list)
         plot.LogPlot(plot.ax1, self.index_dates, self.market_values, 'r', -1)
         plot.show()
+        plot.save( photo_file )
 
 
 if __name__ == "__main__":
     InputArgs()
-    _start_time = time.time()
 
-    loaddata(200, 300)
+    # loaddata(200, 300)
+
+    _start_time = time.time()
+    test = TurtleStrongTest(30, 10)
+
+    # test.long_hold()
+    # cmd = 'long-strong'
+    # print( cmd, 'use time:', time.time()-_start_time, 'seconds')
+    # _file = cmd + '-' + cmdline['record_file']
+    # test.show()
+    # test.account.save_records(_file)
+    # test.plot(cmd, _file)
+
+    # test.turtle_hold()
+    # cmd = 'turtle_hold'
+    # print( cmd, 'use time:', time.time()-_start_time, 'seconds')
+    # _file = cmd + '-' + cmdline['record_file']
+    # test.show()
+    # test.account.save_records(_file)
+    # test.plot(cmd, _file)
+
+    # test.hold_turtle()
+    # cmd = 'hold_turtle'
+    # print( cmd, 'use time:', time.time()-_start_time, 'seconds')
+    # _file = cmd + '-' + cmdline['record_file']
+    # test.show()
+    # test.account.save_records(_file)
+    # test.plot(cmd, _file)
+
+    test.turtle_turtle()
+    cmd = 'turtle_turtle'
+    print( cmd, 'use time:', time.time()-_start_time, 'seconds')
+    _file = cmd + '-' + cmdline['record_file']
+    test.show()
+    test.account.save_records(_file)
+    test.plot(cmd, _file)
+
 
 
     # if isinstance(cmdline['cmd'], list):
     #     cmd = cmdline['cmd'][0]
     # else:
     #     cmd = cmdline['cmd']
-
-    # test = TurtleStrongTest(30, 10)
 
     # if cmd == 'turtle-turtle':
     #     test.turtle_turtle()
@@ -426,16 +470,20 @@ if __name__ == "__main__":
     #     test.long_hold()
     # else:
     #     print( "no process.", cmdline['cmd'] )
-
     # test.show()
-    # test.account.save_records(cmd + '-' + cmdline['record_file'])
 
-    _end_time = time.time()
-    print( 'use time:', _end_time-_start_time, 'seconds')
+    # _end_time = time.time()
+    # print( 'use time:', _end_time-_start_time, 'seconds')
 
-    # test.plot()
+    # _file = cmd + '-' + cmdline['record_file']
+    # test.account.save_records(_file)
+    # test.plot(_file)
 
 
+
+        # if not _volume:
+        #     print(StockDataSet.str_date(_date), code, volume, trade_price, self.highs[code][_idx], self.lows[code][_idx])
+        #     _volume = self.account._Order(code, trade_price, volume, _date)
 
         # self.turtles[hs300].save_data(hs300)
         # self.closes[hs300] = self.turtles[hs300].data['close']

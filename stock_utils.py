@@ -20,11 +20,6 @@ class StockDataSet:
     def parse_data(self, stype = 'stock'):
         return self._parse_data(self.stocks, stype)
 
-    # def parse_data(self, code):
-    #     if code not in self.stocks:
-    #         return []
-    #     return self._parse_data(self.stocks[code])
-
     def read(self, code, time_unit = 'daily'):
         # print('read', code, time_unit, 'data')
         local_data = self._read(code, time_unit)
@@ -225,18 +220,29 @@ class StockDataSet:
 
         else:
             if time_unit == 'daily':
-                hist_data = ts.pro_bar(pro_api=StockDataSet.ts_api, ts_code=code, adj='qfq', start_date=startdate, end_date=enddate)
-                # hist_data = StockDataSet.ts_api.daily(ts_code=code, start_date=startdate, end_date=enddate)
+                hist_data = ts.pro_bar(pro_api=StockDataSet.ts_api, ts_code=code, adj='qfq', 
+                    start_date=startdate, end_date=enddate)
             elif time_unit == 'weekly':
-                hist_data = ts.pro_bar(pro_api=StockDataSet.ts_api, ts_code=code, adj='qfq', freq='W', start_date=startdate, end_date=enddate)
-                # hist_data = StockDataSet.ts_api.weekly(ts_code=code, start_date=startdate, end_date=enddate)
+                hist_data = ts.pro_bar(pro_api=StockDataSet.ts_api, ts_code=code, adj='qfq', freq='W', 
+                    start_date=startdate, end_date=enddate)
             elif time_unit == 'monthly':
-                hist_data = ts.pro_bar(pro_api=StockDataSet.ts_api, ts_code=code, adj='qfq', freq='M', start_date=startdate, end_date=enddate)
-                # hist_data = StockDataSet.ts_api.monthly(ts_code=code, start_date=startdate, end_date=enddate)
-            hist_data.index = range(len(hist_data))
+                hist_data = ts.pro_bar(pro_api=StockDataSet.ts_api, ts_code=code, adj='qfq', freq='M', 
+                    start_date=startdate, end_date=enddate)
+            _rowcount = len(hist_data)
+            if _rowcount:
+                hist_data.index = range( _rowcount )
 
         print('download', len(hist_data), 'row data')
         return hist_data
+
+                # hist_data = StockDataSet.ts_api.daily(ts_code=code, start_date=startdate, end_date=enddate)
+                # hist_data = StockDataSet.ts_api.weekly(ts_code=code, start_date=startdate, end_date=enddate)
+                # hist_data = StockDataSet.ts_api.monthly(ts_code=code, start_date=startdate, end_date=enddate)
+
+    # def parse_data(self, code):
+    #     if code not in self.stocks:
+    #         return []
+    #     return self._parse_data(self.stocks[code])
 
 
 class StockAccount:
@@ -442,8 +448,8 @@ class StockDisp:
         plt.grid()
         plt.show()
 
-    def save(self, filename):
-        plt.savefig(filename)
+    def save(self, filename, path='./images'):
+        plt.savefig( path + '/' + filename)
 
 
     def LogKDisp(self, ax1, data_list):
