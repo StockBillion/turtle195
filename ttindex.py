@@ -3,7 +3,7 @@
 import argparse, numpy as np, pandas as pd, math
 import matplotlib.pyplot as plt, mpl_finance as mpf
 from matplotlib.pylab import date2num, num2date
-from stock_utils import StockDataSet, MovingAverage
+from stock_utils import MovingAverage
 
 
 class TurTleIndex:
@@ -20,17 +20,20 @@ class TurTleIndex:
         self.low_prices = {}
         self.low_locats = {}
 
-        self.date_str = []
-        for i in range(0, len(data_table[0])):
-            datestr = num2date(data_table[0][i]).strftime('%Y%m%d')
-            self.date_str.append(datestr)
-
         self.data['date'] = data_table[0]
-        self.data['date_str'] = self.date_str
         self.data['open'] = data_table[1]
         self.data['high'] = data_table[2]
         self.data['low' ] = data_table[3]
         self.data['close'] = data_table[4]
+
+    def add_date_str(self):
+        dates = self.data['date']
+        self.date_str = []
+        for i in range(0, len(dates)):
+            datestr = num2date(dates[i]).strftime('%Y%m%d')
+            self.date_str.append(datestr)
+        self.data['date_str'] = self.date_str
+
 
     def print_records(self):
         print( pd.DataFrame(self.data) )

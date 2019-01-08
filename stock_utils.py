@@ -3,13 +3,14 @@
 import numpy as np, pandas as pf, math, datetime as dt, time 
 from matplotlib.pylab import date2num, num2date
 import matplotlib.pyplot as plt, mpl_finance as mpf
+
+# https://tushare.pro/
 import tushare as ts
 
 
-class StockDataSet:
+class StockDataSource:
     '股票数据集合'
     
-    # https://tushare.pro/
     ts.set_token("e2a71ab976c499825f6f48186f24700f70e0f13af933e2f508684cc0")
     ts_api = ts.pro_api()
 
@@ -20,6 +21,9 @@ class StockDataSet:
     def parse_data(self, stype = 'stock'):
         return self._parse_data(self.stocks, stype)
 
+    def parse_price(self, stype = 'stock'):
+        return self._parse_price(self.stocks, stype)
+
     def read(self, code, time_unit = 'daily'):
         # print('read', code, time_unit, 'data')
         local_data = self._read(code, time_unit)
@@ -27,19 +31,19 @@ class StockDataSet:
         return self.stocks
 
     def load(self, code, startdate, enddate, stype = 'stock', time_unit = 'daily'):
-        print('load', stype, code, time_unit, 'data, from', StockDataSet.str_date(startdate), 
-            'to', StockDataSet.str_date(enddate))
+        print('load', stype, code, time_unit, 'data, from', StockDataSource.str_date(startdate), 
+            'to', StockDataSource.str_date(enddate))
 
-        startdate = StockDataSet.float_date(startdate)
-        enddate = StockDataSet.float_date(enddate)
+        startdate = StockDataSource.float_date(startdate)
+        enddate = StockDataSource.float_date(enddate)
 
         local_data = self._read(code, time_unit)
         _rowcount = len(local_data)
         
         if _rowcount > 0:
-            print( local_data.at[0, 'trade_date'] )
-            _head = StockDataSet.float_date(local_data.at[0, 'trade_date'])
-            _tear = StockDataSet.float_date(local_data.at[_rowcount-1, 'trade_date'])
+            # print( local_data.at[0, 'trade_date'] )
+            _head = StockDataSource.float_date(local_data.at[0, 'trade_date'])
+            _tear = StockDataSource.float_date(local_data.at[_rowcount-1, 'trade_date'])
             
             if enddate - _head > 10: #_head+1 < enddate:
                 down_data = self._download(code, _head + 1, enddate, stype, time_unit)
@@ -48,8 +52,7 @@ class StockDataSet:
                 down_data = self._download(code, startdate, _tear-1, stype, time_unit)
                 local_data = self._join(local_data, down_data)
         else:
-            down_data = self._download(code, startdate, enddate, stype, time_unit)
-            local_data = down_data
+            local_data = self._download(code, startdate, enddate, stype, time_unit)
 
         if len(local_data) > _rowcount:
             print('write csv file', len(local_data), 'rows')
@@ -58,6 +61,20 @@ class StockDataSet:
         self.stocks = local_data.sort_index(ascending=False)
         return self.stocks
         
+
+    def _parse_price(self, stock_data, stype = 'stock'):
+        _list = []
+        data_list = stock_data.values.tolist()
+
+        for row in data_list:
+            if stype == 'index':
+                tscode, trade_date, close, _open, high, low = row[0:6]
+            elif stype == 'stock':
+                tscode, trade_date, _open, high, low, close = row[0:6]
+            _timenum = StockDataSource.float_date(trade_date)
+            _list.append( (_timenum, _open, high, low, close) )
+
+        return _list
 
     def _parse_data(self, stock_data, stype = 'stock'):
         data_list = []
@@ -71,7 +88,7 @@ class StockDataSet:
                 tscode, trade_date, open, high, low, close = row[0:6]
 
             vol,amount = row[9:11]
-            timenum = StockDataSet.float_date(trade_date)
+            timenum = StockDataSource.float_date(trade_date)
 
             # _date = dt.datetime.strptime(trade_date, '%Y%m%d')
             # timenum = date2num(_date)
@@ -121,9 +138,14 @@ class StockDataSet:
         return data0
 
     def _read(self, code, time_unit = 'daily'):
+        return StockDataSource.read_data_file(self.path + '/' + code + '.' + time_unit + '.csv')
+
+    @staticmethod
+    def read_data_file(data_file, time_unit = 'daily'):
         try:
-            return pf.read_csv(self.path + '/' + code + '.' + time_unit + '.csv', 
-                index_col=0, dtype = {'trade_date' : str})
+            return pf.read_csv(data_file, index_col = 0, dtype = {'trade_date' : str})
+            # return pf.read_csv(path + '/' + code + '.' + time_unit + '.csv', 
+            #     index_col=0, dtype = {'trade_date' : str})
         except IOError: 
             return pf.DataFrame()
 
@@ -200,19 +222,19 @@ class StockDataSet:
 
     def _download(self, code, startdate, enddate, stype = 'stock', time_unit = 'daily'):
         time.sleep(0.01)
-        startdate = StockDataSet.str_date(startdate)
-        enddate = StockDataSet.str_date(enddate)
+        startdate = StockDataSource.str_date(startdate)
+        enddate = StockDataSource.str_date(enddate)
         print('download', stype, code, 'data, from', startdate, 'to', enddate)
 
         if stype == 'index':
-            hist_data = StockDataSet.ts_api.index_daily(ts_code=code, start_date=startdate, end_date=enddate)
+            hist_data = StockDataSource.ts_api.index_daily(ts_code=code, start_date=startdate, end_date=enddate)
             if time_unit == 'weekly':
                 hist_data = self._daily2weekly(hist_data)
             # elif time_unit == 'monthly':
             #     hist_data = self._daily2monthly(hist_data)
 
         elif stype == 'fund':
-            hist_data = StockDataSet.ts_api.fund_daily(ts_code=code, start_date=startdate, end_date=enddate)
+            hist_data = StockDataSource.ts_api.fund_daily(ts_code=code, start_date=startdate, end_date=enddate)
             if time_unit == 'weekly':
                 hist_data = self._daily2weekly(hist_data)
             # elif time_unit == 'monthly':
@@ -220,24 +242,36 @@ class StockDataSet:
 
         else:
             if time_unit == 'daily':
-                hist_data = ts.pro_bar(pro_api=StockDataSet.ts_api, ts_code=code, adj='qfq', 
+                hist_data = ts.pro_bar(pro_api=StockDataSource.ts_api, ts_code=code, adj='qfq', 
                     start_date=startdate, end_date=enddate)
             elif time_unit == 'weekly':
-                hist_data = ts.pro_bar(pro_api=StockDataSet.ts_api, ts_code=code, adj='qfq', freq='W', 
+                hist_data = ts.pro_bar(pro_api=StockDataSource.ts_api, ts_code=code, adj='qfq', freq='W', 
                     start_date=startdate, end_date=enddate)
             elif time_unit == 'monthly':
-                hist_data = ts.pro_bar(pro_api=StockDataSet.ts_api, ts_code=code, adj='qfq', freq='M', 
+                hist_data = ts.pro_bar(pro_api=StockDataSource.ts_api, ts_code=code, adj='qfq', freq='M', 
                     start_date=startdate, end_date=enddate)
-            _rowcount = len(hist_data)
-            if _rowcount:
-                hist_data.index = range( _rowcount )
+                    
+            if hist_data is None:
+                hist_data = pf.DataFrame()
+            else:
+                hist_data.index = range( len(hist_data) )
 
-        print('download', len(hist_data), 'row data')
+        #     if not hist_data is None:
+        #         _rowcount = len(hist_data)
+        #     if _rowcount:
+        #         hist_data.index = range( _rowcount )
+
+        # if not hist_data is None:
+        #     _rowcount = len(hist_data)
+        # else:
+        #     hist_data = pf.DataFrame()
+
+        print('download', len(hist_data), 'row data.')
         return hist_data
 
-                # hist_data = StockDataSet.ts_api.daily(ts_code=code, start_date=startdate, end_date=enddate)
-                # hist_data = StockDataSet.ts_api.weekly(ts_code=code, start_date=startdate, end_date=enddate)
-                # hist_data = StockDataSet.ts_api.monthly(ts_code=code, start_date=startdate, end_date=enddate)
+                # hist_data = StockDataSource.ts_api.daily(ts_code=code, start_date=startdate, end_date=enddate)
+                # hist_data = StockDataSource.ts_api.weekly(ts_code=code, start_date=startdate, end_date=enddate)
+                # hist_data = StockDataSource.ts_api.monthly(ts_code=code, start_date=startdate, end_date=enddate)
 
     # def parse_data(self, code):
     #     if code not in self.stocks:
@@ -250,24 +284,24 @@ class StockAccount:
 
     def __init__(self, cash, max_credit = 0):
         self.max_credit = max_credit
-        self.cash = cash
-        self.credit = 0
-        self.cost = 0
-        self.market_value = cash
+        self.cash = self.market_value = cash
+        self.cost = self.credit = 0
 
-        self.max_value = cash
-        self.max_back = 0
-        self.max_lever = 0
-
+        self.max_value = self.min_value = cash
+        self.max_back = self.max_lever = 0
         self.long_count = self.short_count = self.succeed = 0
 
         self.stocks = pf.DataFrame()
         self.records = []
 
     def status_info(self):
-        print( self.long_count, self.short_count, self.succeed, 
-            self.cash, self.credit, self.market_value, self.cost, 
-            self.max_value, self.max_back, self.max_lever)
+        print('long %d, short %d, success %d.' %(self.long_count, self.short_count, self.succeed))
+        print('value %.2f, credit %.2f, cost %.2f' %( self.market_value*0.0001, self.credit*0.0001, self.cost*0.0001))
+        print('max %.2f, min %.2f, back %.2f, lever %.2f' %( self.max_value*0.0001, self.min_value*0.0001, self.max_back*100, self.max_lever*100))
+
+        # print({ 'long': self.long_count, 'short': self.short_count, 'success': self.succeed, 
+        #     'cash': self.cash, 'credit': self.credit, 'value': self.market_value, 'cost': self.cost, 
+        #     'min value': self.min_value, 'max value': self.max_value, 'max back': self.max_back, 'max lever': self.max_lever })
 
     def get_records(self):
         _records = pf.DataFrame(self.records, columns=['order_time', 'code', 'price', 
@@ -302,6 +336,7 @@ class StockAccount:
 
         self.market_value = self.cash - self.credit + mtk_value
         self.max_value = max(self.max_value, self.market_value)
+        self.min_value = min(self.min_value, self.market_value)
         self.max_back  = max(self.max_back , 1 - self.market_value/self.max_value)
         self.max_lever = max(self.max_lever, self.credit/self.market_value)
 
@@ -361,7 +396,7 @@ class StockAccount:
         _cost, _commision, volume = self.Format(volume, price)
         if not volume:
             return volume
-        order_time = StockDataSet.str_date( order_time )
+        order_time = StockDataSource.str_date( order_time )
         # order_time = num2date(order_time).strftime('%Y%m%d')
         # print(order_time, code, price, volume, _cost, _commision, self.cash)
 
@@ -523,10 +558,10 @@ class MovingAverage:
         return self.ma_indexs[n]
 
 
-if __name__ == "__main__":
-    dataset = StockDataSet('./test')
-    data = dataset._download('600547.sh', '20070101', '20190101', 'stock', 'daily')
-    print( data )
+# if __name__ == "__main__":
+#     dataset = StockDataSource('./test')
+#     data = dataset._download('600547.sh', '20070101', '20190101', 'stock', 'daily')
+#     print( data )
     # data = dataset._download('000300.sh', '20180101', '20190101', 'index', 'daily')
     # print( data )
     # data = dataset._download('002001.sz', '20180101', '20190101', 'stock', 'daily')

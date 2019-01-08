@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 #-*- coding: utf8 -*-
-import argparse, sys, datetime as dt, time
+import argparse, sys, numpy, datetime as dt, time
 from matplotlib.pylab import date2num, num2date
 from ttindex import TurTleIndex
-from stock_utils import StockDataSet, StockDisp, StockAccount
+from stock_utils import StockDataSource, StockDisp, StockAccount
 
 
 hs300 = '000300.sh'
@@ -21,16 +21,15 @@ hs300_stocks = [
 ]
 
 cmdline = {
-    'cmd': 'hold-turtle',
     'start_date': date2num(dt.datetime.strptime('20080101', '%Y%m%d')),
-    'end_date': date2num(dt.datetime.strptime('20190101', '%Y%m%d')),
+    'end_date': date2num(dt.datetime.strptime('20190201', '%Y%m%d')),
     'loss_unit': 0.01,
     "append": 1,
     'stop_loss': 3,
     'long_cycle': 55,
     'short_cycle': 20,
     'strong_cycle': 20,
-    'data_path': './data13',
+    'data_path': './data-qfq-13',
     'stock_count': 20,
     'record_file': 'hs300'
 }
@@ -40,22 +39,19 @@ def InputArgs():
     parser = argparse.ArgumentParser(description="show example")
 
     # parser.add_argument('hs300_stocks', default=['000300.sh'], nargs='*')
-    parser.add_argument('cmd', default='hold-turtle', nargs='*')
     parser.add_argument("-a", "--append", default=1, help="append")
     parser.add_argument("-c", "--count", default=20, help="stock count")
-    parser.add_argument("-e", "--end_date", default='20190101', help="end date")
+    parser.add_argument("-e", "--end_date", default='', help="end date")
     parser.add_argument("-f", "--record_file", default='hs300', help="record file")
     parser.add_argument("-l", "--stop_loss", default=3, help="stop loss")
-    parser.add_argument("-p", "--data_path", default='./data13', help="stock data path")
-    parser.add_argument("-s", "--start_date", default='20160101', help="start date")
+    parser.add_argument("-p", "--data_path", default='./data-qfq-13', help="stock data path")
+    parser.add_argument("-s", "--start_date", default='20070101', help="start date")
     parser.add_argument("-S", "--strong_cycle", default=20, help="strong cycle")
     parser.add_argument("-u", "--loss_unit", default=0.01, help="loss unit")
 
     ARGS = parser.parse_args()
     global cmdline
 
-    if ARGS.cmd:
-        cmdline['cmd'] = ARGS.cmd
     if ARGS.start_date:
         _date = dt.datetime.strptime(str(ARGS.start_date), '%Y%m%d')
         cmdline['start_date'] = date2num(_date)
@@ -81,19 +77,63 @@ def InputArgs():
     # print( cmdline )
 
 
-def loaddata(start_index, end_index):
-    dataset = StockDataSet(cmdline['data_path'])
-    dataset.load(hs300, cmdline['start_date'], cmdline['end_date'], 'index', 'daily')
-    print("load", hs300)
-
-    for i in range(start_index, end_index): # stock in stocks:
-        stock = hs300_stocks[i]
-        dataset.load(stock[1] + '.' + stock[0], cmdline['start_date'], 
-            cmdline['end_date'], 'stock', 'daily')
-        print("load", str(i), "stocks.")
-        # code = stock[1] + '.' + stock[0]
-        # dataset.load(code, startdate, enddate, 'stock', 'daily')
+class StockSetData:
     
+    @staticmethod
+    def loaddata(start_index, end_index):
+        datasrc = StockDataSource(cmdline['data_path'])
+        datasrc.load(hs300, cmdline['start_date'], cmdline['end_date'], 'index', 'daily')
+        print("load", hs300)
+
+        for i in range(start_index, end_index):
+            stock = hs300_stocks[i]
+            datasrc.load(stock[1] + '.' + stock[0], cmdline['start_date'], 
+                cmdline['end_date'], 'stock', 'daily')
+            print("load", str(i), "stocks.")
+            
+    @staticmethod
+    def MergeData(data_file = './hs300_all.daily.csv'):
+        datasrc = StockDataSource(cmdline['data_path'])
+        all_count = min(len(hs300_stocks), cmdline['stock_count'])
+        _start_time = time.time()
+
+        code = hs300_stocks[0][1] + '.' + hs300_stocks[0][0]
+        stocks = datasrc._read(code, 'daily')
+
+        for i in range(1, all_count):
+            code = hs300_stocks[i][1] + '.' + hs300_stocks[i][0]
+            _stocks = datasrc._read(code, 'daily')
+            stocks = stocks.append(_stocks, ignore_index=True)
+
+            if i % 20 == 19:
+                print('read', i+1, 'stocks data, run', time.time() - _start_time, 'seconds.')
+        print('read', all_count, 'stocks data, run', time.time() - _start_time, 'seconds.')
+
+        stocks.to_csv(data_file)
+        print('write csv file', len(stocks), 'rows,', 'use time:', time.time()-_start_time, 'seconds')
+
+    @staticmethod
+    def parse_data(data_file):
+        data_lists = {}
+
+        _count = min(len(hs300_stocks), cmdline['stock_count'])
+        for i in range(0, _count):
+            code = hs300_stocks[i][1] + '.' + hs300_stocks[i][0]
+            data_lists[code.upper()] = []
+
+        stock_data = StockDataSource.read_data_file(data_file)
+        stock_data = stock_data.sort_index(ascending=False)
+        rows = stock_data.values.tolist()
+        print('stock_data length = ', len(stock_data))
+
+        _last = len(rows) - 1
+        for i in range(0, _last):
+            tscode, trade_date, _open, high, low, close = rows[i][0:6]
+            timenum = StockDataSource.float_date(trade_date)
+            data_lists[tscode].append( (timenum, float(_open), float(high), float(low), float(close)) )
+
+        return data_lists
+
 
 class TurtleStrongTest:
     '海龟强势股测试'
@@ -103,7 +143,7 @@ class TurtleStrongTest:
         self.max_count = max_count
         self.scale = 1.0/max_count
 
-        self.dataset = StockDataSet(cmdline['data_path'])
+        self.dataset = StockDataSource(cmdline['data_path'])
         self.all_count = min(len(hs300_stocks), cmdline['stock_count'])
 
         self.year = 0
@@ -111,9 +151,9 @@ class TurtleStrongTest:
         
         self.turtles = {}
         self.codes = []
+        self.data_indexs = {}
 
         self.date_vecs = {}
-        self.data_indexs = {}
         self.long_indexs = {}
 
         self.closes = {}
@@ -125,35 +165,37 @@ class TurtleStrongTest:
         self.curr_holds = {}
         self.curr_prices = {}
 
-        # self.account.ProfitDaily()
-
         self.dataset.read(hs300, 'daily')
-        self.index_dates, self.hs300_list, ave_price, volumes = self.dataset.parse_data('index')
-
+        self.hs300_list = self.dataset.parse_price('index')
+        self.index_dates = numpy.transpose( self.hs300_list )[0]
+        
         for i in range(0, self.all_count):
             code = hs300_stocks[i][1] + '.' + hs300_stocks[i][0]
             self.codes.append(code)
             
             self.dataset.read(code, 'daily')
-            _dates, _list, ave_price, volumes = self.dataset.parse_data('stock')
-            self.date_vecs[code] = _dates
+            _list = self.dataset.parse_price('stock')
+            self._read_stock(code, _list)
 
-            self.turtles[code] = TurTleIndex(_list)
-            self.long_indexs[code] = self.turtles[code].long_index( cmdline['strong_cycle'] )
-            self.data_indexs[code] = 0
-
-            self.closes[code] = self.turtles[code].data['close']
-            self.opens[code] = self.turtles[code].data['open']
-            self.highs[code] = self.turtles[code].data['high']
-            self.lows[code] = self.turtles[code].data['low']
-
-            if i % 20 == 19:
+            if i % 100 == 99:
                 print('read', i+1, 'stocks data, run', time.time() - self.start, 'seconds.')
         print('read', len(self.codes), 'stocks data, run', time.time() - self.start, 'seconds.')
+
+    def _read_stock(self, code, data_list):
+        self.turtles[code] = TurTleIndex(data_list)
+        self.long_indexs[code] = self.turtles[code].long_index( cmdline['strong_cycle'] )
+        self.date_vecs[code] = self.turtles[code].data['date']
+
+        self.closes[code] = self.turtles[code].data['close']
+        self.opens[code] = self.turtles[code].data['open']
+        self.highs[code] = self.turtles[code].data['high']
+        self.lows[code] = self.turtles[code].data['low']
+
 
     def _index_turtle(self):
         self.turtles[hs300] = TurTleIndex(self.hs300_list)
         self.turtles[hs300].price_wave(cmdline['long_cycle'], cmdline['short_cycle'])
+        # self.index_dates = self.turtles[hs300].data['date']
 
         self.turtles[hs300].long_trade(cmdline['long_cycle'], cmdline['short_cycle'], 
             cmdline['append'], cmdline['stop_loss'])
@@ -282,7 +324,7 @@ class TurtleStrongTest:
 
 
     def print_progress(self, _date):
-        _year = StockDataSet.datetime(_date).year
+        _year = StockDataSource.datetime(_date).year
         if self.year != _year:
             self.year = _year
             print( "process to", self.year, ', market_value', self.account.market_value, ', run', time.time() - self.start, 'seconds.' )
@@ -293,22 +335,26 @@ class TurtleStrongTest:
         coname = sys._getframe().f_code.co_name          #获取当前函数名
         print( coname, funcName, lineNumber ) 
 
-        self.account = StockAccount(100 * 10000, 0)
+        self.account = StockAccount(10000, 0)
         self.market_values = []
-        self.market_values.append(self.account.market_value*0.001)
+        self.market_values.append(self.account.market_value)
+        for code in self.codes:
+            self.data_indexs[code] = 0
 
 
     def long_hold(self):
         '''长期持有强势股'''
+
+        # self.index_dates = numpy.transpose( self.hs300_list )[0]
         self._start_static()
 
         for _idx in range(1, len(self.index_dates)):
             _date = self.index_dates[_idx]
-            self.print_progress(_date)
+            # self.print_progress(_date)
 
             if _date < cmdline['start_date'] or _date > cmdline['end_date']:
                 # self.account.ProfitDaily()
-                self.market_values.append(self.account.market_value*0.001)
+                self.market_values.append(self.account.market_value)
                 continue
 
             self.account.ProfitDaily()
@@ -318,22 +364,23 @@ class TurtleStrongTest:
             self._update_long_hold(_date)
 
             self.account.UpdateValue(self.curr_closes)
-            self.market_values.append(self.account.market_value*0.001)
+            self.market_values.append(self.account.market_value)
 
 
     def hold_turtle(self):
         '''长期持股,根据海龟法则交易个股'''
 
+        # self.index_dates = numpy.transpose( self.hs300_list )[0]
         self._start_static()
         self._stock_turtle()
 
         for _idx in range(1, len(self.index_dates)):
             _date = self.index_dates[_idx]
-            self.print_progress(_date)
+            # self.print_progress(_date)
 
             if _date < cmdline['start_date'] or _date > cmdline['end_date']:
                 # self.account.ProfitDaily()
-                self.market_values.append(self.account.market_value*0.001)
+                self.market_values.append(self.account.market_value)
                 continue
 
             self.account.ProfitDaily()
@@ -341,23 +388,24 @@ class TurtleStrongTest:
             self._update_turtle(_date)
 
             self.account.UpdateValue(self.curr_closes)
-            self.market_values.append(self.account.market_value*0.001)
+            self.market_values.append(self.account.market_value)
 
 
     def turtle_turtle(self):
         '''根据海龟法则分析指数判断牛熊市，然后根据海龟法则交易个股'''
 
+        long_days = 0
         self._start_static()
         self._index_turtle()
         self._stock_turtle()
 
         for _idx in range(1, len(self.index_dates)):
             _date = self.index_dates[_idx]
-            self.print_progress(_date)
+            # self.print_progress(_date)
 
             if _date < cmdline['start_date'] or _date > cmdline['end_date']:
                 # self.account.ProfitDaily()
-                self.market_values.append(self.account.market_value*0.001)
+                self.market_values.append(self.account.market_value)
                 continue
 
             self.account.ProfitDaily()
@@ -369,7 +417,10 @@ class TurtleStrongTest:
                 self._clear(_date)
                 
             self.account.UpdateValue(self.curr_closes)
-            self.market_values.append(self.account.market_value*0.001)
+            self.market_values.append(self.account.market_value)
+            if len(self.account.stocks):
+                long_days += 1
+        print('all day %d, long day %d.' % (len(self.index_dates), long_days))
 
 
     def turtle_hold(self):
@@ -380,11 +431,11 @@ class TurtleStrongTest:
 
         for _idx in range(1, len(self.index_dates)):
             _date = self.index_dates[_idx]
-            self.print_progress(_date)
+            # self.print_progress(_date)
 
             if _date < cmdline['start_date'] or _date > cmdline['end_date']:
                 # self.account.ProfitDaily()
-                self.market_values.append(self.account.market_value*0.001)
+                self.market_values.append(self.account.market_value)
                 continue
 
             self.account.ProfitDaily()
@@ -397,33 +448,41 @@ class TurtleStrongTest:
                 self._clear(_date)
                 
             self.account.UpdateValue(self.curr_closes)
-            self.market_values.append(self.account.market_value*0.001)
+            self.market_values.append(self.account.market_value)
 
 
     def show(self):
-        print( self.account.stocks )
+        # print( self.account.stocks )
         # print( self.account.get_records() )
         self.account.status_info()
 
     def plot(self, cmd, photo_file):
         plot = StockDisp(cmd + '-' + hs300)
         plot.LogKDisp(plot.ax1, self.hs300_list)
-        plot.LogPlot(plot.ax1, self.index_dates, self.market_values, 'r', -1)
-        plot.show()
+        plot.LogPlot(plot.ax1, self.index_dates, self.market_values, 'r', 6)
+        # plot.show()
         plot.save( photo_file )
 
 
 if __name__ == "__main__":
     InputArgs()
 
-    # loaddata(200, 300)
+    # StockSetData.loaddata(200, 300)
 
-    _start_time = time.time()
     test = TurtleStrongTest(30, 10)
+    test.turtle_turtle()
+
+    _cmd = 'turtle_turtle'
+    _file = _cmd + '-' + cmdline['record_file']
+    print( _cmd, 'use time:', time.time() - test.start, 'seconds')
+    test.show()
+    test.account.save_records(_file)
+    test.plot(_cmd, _file)
+
 
     # test.long_hold()
     # cmd = 'long-strong'
-    # print( cmd, 'use time:', time.time()-_start_time, 'seconds')
+    # print( cmd, 'use time:', time.time()-test.start, 'seconds')
     # _file = cmd + '-' + cmdline['record_file']
     # test.show()
     # test.account.save_records(_file)
@@ -431,7 +490,7 @@ if __name__ == "__main__":
 
     # test.turtle_hold()
     # cmd = 'turtle_hold'
-    # print( cmd, 'use time:', time.time()-_start_time, 'seconds')
+    # print( cmd, 'use time:', time.time()-test.start, 'seconds')
     # _file = cmd + '-' + cmdline['record_file']
     # test.show()
     # test.account.save_records(_file)
@@ -439,21 +498,51 @@ if __name__ == "__main__":
 
     # test.hold_turtle()
     # cmd = 'hold_turtle'
-    # print( cmd, 'use time:', time.time()-_start_time, 'seconds')
+    # print( cmd, 'use time:', time.time()-test.start, 'seconds')
     # _file = cmd + '-' + cmdline['record_file']
     # test.show()
     # test.account.save_records(_file)
     # test.plot(cmd, _file)
 
-    test.turtle_turtle()
-    cmd = 'turtle_turtle'
-    print( cmd, 'use time:', time.time()-_start_time, 'seconds')
-    _file = cmd + '-' + cmdline['record_file']
-    test.show()
-    test.account.save_records(_file)
-    test.plot(cmd, _file)
+
+        # stock_data = csv.reader(open(data_file, 'r'))
+        # rows = [stock for stock in stock_data]
+        # rows.reverse()
+
+        # for rnum, row in stock_data.iterrows():
+        #     tscode, trade_date, open, high, low, close = row[0:6]
+        #     timenum = StockDataSource.float_date(trade_date)
+        #     data_lists[tscode].append( (timenum, open, high, low, close) )
+
+        # self.index_dates, self.hs300_list, ave_price, volumes = self.dataset.parse_data('index')
+
+        # data_lists = StockSetData.parse_data('./hs300_all.daily.csv')
+        # print('parse', len(data_lists), 'stocks data, run', time.time() - self.start, 'seconds.')
+
+        # for i in range(0, self.all_count):
+        #     code = hs300_stocks[i][1] + '.' + hs300_stocks[i][0]
+        #     code = code.upper()
+        #     if code in data_lists and len(data_lists[code]) > 10:
+        #         self.codes.append(code)  
+        #         self._read_stock(code, data_lists[code])
+
+        # print('read', len(self.codes), 'stocks data, run', time.time() - self.start, 'seconds.')
 
 
+    # ss = {'600387': [1, 2, 3], '000225': [4, 5, 6], '300758': [7, 8, 9]}
+    # for a in ss.keys():
+    #     print( ss[a], a )
+    #     print( a )
+
+
+            # self.date_vecs[code] = _dates
+            # self.turtles[code] = TurTleIndex(_list)
+            # self.long_indexs[code] = self.turtles[code].long_index( cmdline['strong_cycle'] )
+            
+            # self.closes[code] = self.turtles[code].data['close']
+            # self.opens[code] = self.turtles[code].data['open']
+            # self.highs[code] = self.turtles[code].data['high']
+            # self.lows[code] = self.turtles[code].data['low']
 
     # if isinstance(cmdline['cmd'], list):
     #     cmd = cmdline['cmd'][0]
@@ -473,7 +562,7 @@ if __name__ == "__main__":
     # test.show()
 
     # _end_time = time.time()
-    # print( 'use time:', _end_time-_start_time, 'seconds')
+    # print( 'use time:', time.time()-_start_time, 'seconds')
 
     # _file = cmd + '-' + cmdline['record_file']
     # test.account.save_records(_file)
