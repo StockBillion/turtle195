@@ -291,7 +291,7 @@ class TurtleStrongTest:
         if len(self.account.stocks) < self.max_count:
             self.sorted_stocks = self._sort_strong_stocks(_date)
             _sorted_count = min(len(self.sorted_stocks), self.all_count)
-            _cash_unit = self.account.market_value * self.scale * cmdline['loss_unit']
+            _cash_unit = max(1000, self.account.market_value * self.scale * cmdline['loss_unit'])
 
             for i in range(0, _sorted_count):
                 code = self.sorted_stocks[i]['code']
@@ -335,7 +335,7 @@ class TurtleStrongTest:
         coname = sys._getframe().f_code.co_name          #获取当前函数名
         print( coname, funcName, lineNumber ) 
 
-        self.account = StockAccount(10000, 0)
+        self.account = StockAccount(10*10000, 50*10000)
         self.market_values = []
         self.market_values.append(self.account.market_value)
         for code in self.codes:
@@ -460,7 +460,7 @@ class TurtleStrongTest:
         plot = StockDisp(cmd + '-' + hs300)
         plot.LogKDisp(plot.ax1, self.hs300_list)
         plot.LogPlot(plot.ax1, self.index_dates, self.market_values, 'r', 6)
-        # plot.show()
+        plot.show()
         plot.save( photo_file )
 
 

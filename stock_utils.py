@@ -256,27 +256,8 @@ class StockDataSource:
             else:
                 hist_data.index = range( len(hist_data) )
 
-        #     if not hist_data is None:
-        #         _rowcount = len(hist_data)
-        #     if _rowcount:
-        #         hist_data.index = range( _rowcount )
-
-        # if not hist_data is None:
-        #     _rowcount = len(hist_data)
-        # else:
-        #     hist_data = pf.DataFrame()
-
         print('download', len(hist_data), 'row data.')
         return hist_data
-
-                # hist_data = StockDataSource.ts_api.daily(ts_code=code, start_date=startdate, end_date=enddate)
-                # hist_data = StockDataSource.ts_api.weekly(ts_code=code, start_date=startdate, end_date=enddate)
-                # hist_data = StockDataSource.ts_api.monthly(ts_code=code, start_date=startdate, end_date=enddate)
-
-    # def parse_data(self, code):
-    #     if code not in self.stocks:
-    #         return []
-    #     return self._parse_data(self.stocks[code])
 
 
 class StockAccount:
@@ -298,10 +279,6 @@ class StockAccount:
         print('long %d, short %d, success %d.' %(self.long_count, self.short_count, self.succeed))
         print('value %.2f, credit %.2f, cost %.2f' %( self.market_value*0.0001, self.credit*0.0001, self.cost*0.0001))
         print('max %.2f, min %.2f, back %.2f, lever %.2f' %( self.max_value*0.0001, self.min_value*0.0001, self.max_back*100, self.max_lever*100))
-
-        # print({ 'long': self.long_count, 'short': self.short_count, 'success': self.succeed, 
-        #     'cash': self.cash, 'credit': self.credit, 'value': self.market_value, 'cost': self.cost, 
-        #     'min value': self.min_value, 'max value': self.max_value, 'max back': self.max_back, 'max lever': self.max_lever })
 
     def get_records(self):
         _records = pf.DataFrame(self.records, columns=['order_time', 'code', 'price', 
@@ -347,14 +324,6 @@ class StockAccount:
                 self.stocks.at[code, 'market_value'] = prices[code]*row['volume']
         self._update_param()
 
-    def _clearup(self):
-        _clear_codes = []
-        for code, row in self.stocks.iterrows():
-            if row['volume'] < 10 and row['volume'] > -10:
-                _clear_codes.append(code)
-        if len(_clear_codes):
-            self.stocks.drop(index = _clear_codes, axis = 0, inplace=True)
-
 
     def ProfitDaily(self):
         self.cash *= 1.00005
@@ -394,11 +363,10 @@ class StockAccount:
 
     def _Order(self, code, price, volume, order_time):
         _cost, _commision, volume = self.Format(volume, price)
-        if not volume:
-            return volume
+        if not volume or (self.max_credit > 100 and self.credit + _cost - self.cash > self.max_credit):
+            return 0
         order_time = StockDataSource.str_date( order_time )
-        # order_time = num2date(order_time).strftime('%Y%m%d')
-        # print(order_time, code, price, volume, _cost, _commision, self.cash)
+        print(order_time, code, price, volume, _cost, _commision, self.cash, self.credit)
 
         if _cost < 0 and self.credit > 0:
             self.credit += _cost
@@ -409,6 +377,7 @@ class StockAccount:
             if self.max_credit > 0 and self.credit + _cost - self.cash > self.max_credit:
                 volume = (self.max_credit - self.credit + self.cash) / price
                 _cost, _commision, volume = self.Format(volume, price)
+                print('reset', order_time, code, price, volume, _cost, _commision, self.cash, self.credit)
             self.credit += _cost - self.cash
             self.cash = 0
         else:
@@ -416,11 +385,13 @@ class StockAccount:
         self.cost += _commision
 
         if code in self.stocks.index:
-            if( self.stocks.loc[code]['volume'] + volume < 0 ):
-                raise ValueError("Don't naked short sale.")
-
             _row = self.stocks.loc[code]
             _volume = _row.volume + volume
+
+            if _volume < 0:
+                print(self.stocks.loc[code])
+                raise ValueError("Don't naked short sale.")
+
             if _volume == 0:
                 _cost_price = _row.cost_price
                 if _row.volume*_row.cost_price + _cost < 0: 
@@ -428,29 +399,33 @@ class StockAccount:
             else:
                 _cost_price = (_row.volume*_row.cost_price + _cost) / _volume
             mkt_value = _volume*price
-            # print( 417, self.stocks.loc[code] )
-            # print(self.cash, self.credit, _volume, _commision + _value, price, _cost_price, _volume*price, order_time)
             self.stocks.loc[code] = [_volume, price, _cost_price, mkt_value, order_time]
-
+            
         else:
-            if( volume <= 0 ):
+            if volume <= 0:
+                print(order_time, code, volume, price, self.cash)
                 raise ValueError("Don't naked short sale.")
-            _cost_price = _cost / volume
             _volume = volume
+            _cost_price = _cost / volume
             mkt_value = volume*price
+
             _row = {'volume': [volume], 'price': [price], 'cost_price': [_cost_price], 
                 'market_value': [mkt_value], 'order_time': [order_time]}
             _index = [code]
-            # print( 428, _row )
-            # print(self.cash, self.credit, volume, _commision + _value, price, _cost_price, volume*price, order_time)
             self.stocks = self.stocks.append(pf.DataFrame(_row, _index))
-
+            
         if volume < 0:
             self.short_count+= 1
         else:
             self.long_count += 1
 
-        self._clearup()
+        _clear_codes = []
+        for code, row in self.stocks.iterrows():
+            if row['volume'] < 10 and row['volume'] > -10:
+                _clear_codes.append(code)
+        if len(_clear_codes):
+            self.stocks.drop(index = _clear_codes, axis = 0, inplace=True)
+
         self._update_param()
         lever = self.credit/self.market_value
         back_pump = 1 - self.market_value/self.max_value
@@ -558,6 +533,51 @@ class MovingAverage:
         return self.ma_indexs[n]
 
 
+        #     if not hist_data is None:
+        #         _rowcount = len(hist_data)
+        #     if _rowcount:
+        #         hist_data.index = range( _rowcount )
+
+        # if not hist_data is None:
+        #     _rowcount = len(hist_data)
+        # else:
+        #     hist_data = pf.DataFrame()
+
+                # hist_data = StockDataSource.ts_api.daily(ts_code=code, start_date=startdate, end_date=enddate)
+                # hist_data = StockDataSource.ts_api.weekly(ts_code=code, start_date=startdate, end_date=enddate)
+                # hist_data = StockDataSource.ts_api.monthly(ts_code=code, start_date=startdate, end_date=enddate)
+
+    # def parse_data(self, code):
+    #     if code not in self.stocks:
+    #         return []
+    #     return self._parse_data(self.stocks[code])
+
+        # print({ 'long': self.long_count, 'short': self.short_count, 'success': self.succeed, 
+        #     'cash': self.cash, 'credit': self.credit, 'value': self.market_value, 'cost': self.cost, 
+        #     'min value': self.min_value, 'max value': self.max_value, 'max back': self.max_back, 'max lever': self.max_lever })
+
+    # def _clearup(self):
+    #     _clear_codes = []
+    #     for code, row in self.stocks.iterrows():
+    #         if row['volume'] < 10 and row['volume'] > -10:
+    #             _clear_codes.append(code)
+    #     if len(_clear_codes):
+    #         self.stocks.drop(index = _clear_codes, axis = 0, inplace=True)
+
+        # if (code in self.stocks.index and volume <= 0 ) or self.stocks.at[code, 'volume'] + volume < 0:
+
+                # print(order_time, code, price, volume, _cost, _commision, self.cash)
+            # if( self.stocks.loc[code]['volume'] + volume < 0 ):
+            #     raise ValueError("Don't naked short sale.")
+
+            # print( 417, self.stocks.loc[code] )
+            # print(self.cash, self.credit, _volume, _commision + _value, price, _cost_price, _volume*price, order_time)
+
+            # print( 428, _row )
+            # print(self.cash, self.credit, volume, _commision + _value, price, _cost_price, volume*price, order_time)
+
+        # self._clearup()
+        
 # if __name__ == "__main__":
 #     dataset = StockDataSource('./test')
 #     data = dataset._download('600547.sh', '20070101', '20190101', 'stock', 'daily')
